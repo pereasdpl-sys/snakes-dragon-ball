@@ -52,7 +52,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// Configuración de Firebase
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDvewyV9qxnAX9sHsbbWdKWLFOi1R13mrY",
   authDomain: "snake-dragon-ball-cb4ef.firebaseapp.com",
@@ -62,12 +62,11 @@ const firebaseConfig = {
   appId: "1:82216464295:web:9505b08e5114f9f948d082",
   measurementId: "G-S4SHGH26KC"
 };
-
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-/* ===== Variables del juego ===== */
+/* ===== Variables ===== */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -85,16 +84,16 @@ let CELL = 30, COLS = Math.floor(canvas.width / CELL), ROWS = Math.floor(canvas.
 let snake=[], dir={x:1,y:0}, nextDir=null, foodList=[], score=0;
 let running=false, paused=false, gameInterval=null, level=1, boardExpanded=false, currentUser=null;
 
-/* ===== Login opcional ===== */
+/* ===== Login ===== */
 loginBtn.addEventListener('click', async ()=>{
-  if(location.protocol==="file:"){ alert("Para login debes abrir el juego en Live Server (http://)"); return; }
+  if(location.protocol==="file:"){ alert("Usa Live Server para login"); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
   try {
     const res = await auth.signInWithPopup(provider);
     currentUser = res.user;
     userEl.textContent = `Conectado: ${currentUser.displayName}`;
     loginBtn.style.display='none';
-  } catch(err){ console.error(err); alert("Error al iniciar sesión: "+err.message); }
+  } catch(err){ console.error(err); alert("Error: "+err.message); }
 });
 
 /* ===== Juego ===== */
@@ -116,6 +115,56 @@ function spawnFood(){
     }
   }
   updateUI();
+}
+
+function spawnSingleFood(){
+  let fx, fy;
+  do {
+    fx=Math.floor(Math.random()*COLS);
+    fy=Math.floor(Math.random()*ROWS);
+  } while(snake.some(s=>s.x===fx && s.y===fy) || foodList.some(f=>f.x===fx && f.y===fy));
+  foodList.push({x:fx,y:fy,stars:1});
+  animateParticles(fx*CELL+CELL/2, fy*CELL+CELL/2, 'yellow');
+}
+
+function animateParticles(x, y, color){
+  const particles = [];
+  for(let i=0;i<15;i++){
+    particles.push({
+      x, y,
+      vx: Math.random()*2-1,
+      vy: Math.random()*2-1,
+      life: Math.random()*30+30
+    });
+  }
+  const anim = setInterval(()=>{
+    draw();
+    for(let p of particles){
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,2,0,Math.PI*2);
+      ctx.fill();
+      p.x += p.vx; p.y += p.vy; p.life--;
+    }
+    for(let i=particles.length-1;i>=0;i--) if(particles[i].life<=0) particles.splice(i,1);
+    if(particles.length===0) clearInterval(anim);
+  },30);
+}
+
+function showShenlongTransition(){
+  return new Promise(resolve=>{
+    overlay.style.display='block';
+    overlay.innerHTML = "¡Has reunido las 7 Bolas del Dragón!<br>Shenlong te teletransporta...";
+    overlay.style.transform='translate(-50%,-50%) scale(0.5)';
+    overlay.style.opacity = 0;
+    let t=0;
+    const anim = setInterval(()=>{
+      t+=0.05;
+      overlay.style.transform=`translate(-50%,-50%) scale(${0.5 + t})`;
+      overlay.style.opacity = Math.min(1, t*2);
+      if(t>=1) { clearInterval(anim); setTimeout(()=>{overlay.style.display='none'; resolve();}, 800); }
+    },30);
+  });
 }
 
 document.addEventListener('keydown', e=>{
@@ -140,35 +189,19 @@ async function gameTick(){
       score += 10*(f.stars||1);
       foodList.splice(i,1);
       ate=true;
-
-      if(level>=2){
-        let fx, fy;
-        do {
-          fx=Math.floor(Math.random()*COLS);
-          fy=Math.floor(Math.random()*ROWS);
-        } while(snake.some(s=>s.x===fx&&s.y===fy) || foodList.some(f=>f.x===fx&&f.y===fy));
-        foodList.push({x:fx,y:fy,stars:1});
-
-        const fxPx = fx*CELL + CELL/2, fyPx = fy*CELL + CELL/2;
-        const anim = setInterval(()=>{
-          ctx.beginPath();
-          ctx.arc(fxPx, fyPx, Math.random()*CELL*0.4 + CELL*0.1,0,Math.PI*2);
-          ctx.fillStyle='rgba(255,255,0,0.5)'; ctx.fill();
-        },50);
-        setTimeout(()=>{ clearInterval(anim); },300);
-      }
+      if(level>=2) spawnSingleFood();
       break;
     }
   }
-
   if(!ate) snake.pop(); 
   updateUI();
 
   if(foodList.length===0 && level===1){
     await showShenlongTransition();
-    level=2; spawnFood();
+    teleportToCenter();
+    level=2; spawnSingleFood();
   } else if(foodList.length===0 && level>=2 && !boardExpanded){
-    expandBoard(); spawnFood();
+    expandBoard(); spawnSingleFood();
   }
 }
 
@@ -177,35 +210,28 @@ function teleportToCenter(){
   for(let i=0;i<snake.length;i++){ snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx)); snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy)); }
 }
 
-function expandBoard(){ showOverlay("¡El tablero se expande! Ahora sigue hasta que mueras...",2000); COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; teleportToCenter(); boardExpanded=true; }
+function expandBoard(){ 
+  showOverlay("¡El tablero se expande!"); 
+  COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; 
+  teleportToCenter(); 
+  boardExpanded=true; 
+}
 
 function updateUI(){ scoreEl.textContent=`Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`; }
 
-function showOverlay(text,ms=1500){ overlay.style.display='block'; overlay.innerText=text; overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)'; setTimeout(()=>{ overlay.style.display='none'; },ms); }
-
-async function showShenlongTransition(){
-  return new Promise(resolve=>{
-    overlay.style.display='block';
-    overlay.innerHTML = `<img src="https://i.imgur.com/Ff5Wb0v.png" style="width:250px;height:auto;animation:fadeInOut 2s;"> <br>¡Shenlong te teletransporta!`;
-    overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)';
-    const style = document.createElement('style');
-    style.innerHTML = `
-      @keyframes fadeInOut {
-        0% { opacity:0; transform: scale(0.5) rotate(0deg);}
-        50% { opacity:1; transform: scale(1.2) rotate(720deg);}
-        100% { opacity:0; transform: scale(1) rotate(0deg);}
-      }`;
-    document.head.appendChild(style);
-    teleportToCenter();
-    teleportSound.currentTime=0; teleportSound.play();
-    setTimeout(()=>{ overlay.style.display='none'; resolve(); },2000);
-  });
+function showOverlay(text,ms=1500){ 
+  overlay.style.display='block'; overlay.innerText=text; 
+  overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)';
+  setTimeout(()=>{ overlay.style.display='none'; },ms); 
 }
 
 async function endGame(){
   clearInterval(gameInterval); running=false; showOverlay(`¡Has muerto!\nPuntuación: ${score}`,3500); restartBtn.style.display='inline-block';
   if(currentUser){
-    try{ await db.collection('rankings').add({uid:currentUser.uid,name:currentUser.displayName||currentUser.email||"Jugador",score:score,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); fetchRanking(); }
+    try{ 
+      await db.collection('rankings').add({uid:currentUser.uid,name:currentUser.displayName||currentUser.email||"Jugador",score:score,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); 
+      fetchRanking(); 
+    }
     catch(e){ console.error(e);}
   }
 }
@@ -213,7 +239,8 @@ async function endGame(){
 /* ===== Botones ===== */
 startBtn.addEventListener('click', ()=>{
   resetGame(); running=true; startBtn.style.display='none'; pauseBtn.style.display='inline-block'; restartBtn.style.display='none';
-  if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7);
+  if(gameInterval) clearInterval(gameInterval); 
+  gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7);
 });
 pauseBtn.addEventListener('click',()=>{ if(!running) return; paused=!paused; pauseBtn.textContent=paused?'Reanudar':'Pausa'; });
 restartBtn.addEventListener('click',()=>{ resetGame(); running=true; paused=false; restartBtn.style.display='none'; pauseBtn.style.display='inline-block'; if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7); });
@@ -230,9 +257,14 @@ async function fetchRanking(){
 }
 fetchRanking();
 
-/* ===== Dibujar Dragón y Bolas ===== */
+/* ===== Dibujar ===== */
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // fondo
+  ctx.drawImage(document.createElement('img'),0,0,canvas.width,canvas.height); // placeholder, ya está en CSS
+
+  // cuadricula
   ctx.strokeStyle='rgba(255,255,255,0.08)';
   for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke(); }
   for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke(); }
@@ -274,10 +306,10 @@ function drawDragonBall(px,py,stars){
   const cx=px+CELL/2, cy=py+CELL/2, r=CELL*0.38;
   const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.05,cx,cy,r);
   g.addColorStop(0,'#fffacd'); g.addColorStop(0.3,'#ffb347'); g.addColorStop(1,'#ff7f00');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.fill();
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#a00';
   for(let i=0;i<stars;i++){
-    const ang=(i/stars)*2*Math.PI;
+    const ang=(i/stars)*Math.PI*2;
     const sx=cx+Math.cos(ang)*(r*0.45), sy=cy+Math.sin(ang)*(r*0.45);
     drawStar(sx,sy,CELL*0.12,CELL*0.04);
   }
