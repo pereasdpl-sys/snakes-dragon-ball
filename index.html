@@ -139,18 +139,25 @@ function resetGame(){
   updateUI(); draw();
 }
 
-function spawnFood(){
-  const balls = (level===1)?7:5+Math.floor(Math.random()*5);
-  while(foodList.length < balls){
+ffunction spawnFood() {
+  foodList = [];
+  let balls;
+  if(level === 1) {
+    balls = 7; // Nivel 1: solo las 7 bolas
+  } else {
+    balls = 5 + Math.floor(Math.random()*5); // Nivel 2+: bolas aleatorias
+  }
+  for(let i=0;i<balls;i++){
     let fx, fy;
-    do{
-      fx=Math.floor(Math.random()*COLS);
-      fy=Math.floor(Math.random()*ROWS);
+    do {
+      fx = Math.floor(Math.random()*COLS);
+      fy = Math.floor(Math.random()*ROWS);
     } while(snake.some(s=>s.x===fx&&s.y===fy) || foodList.some(f=>f.x===fx&&f.y===fy));
-    foodList.push({x:fx, y:fy, stars:(foodList.length%7)+1});
+    foodList.push({x:fx, y:fy, stars: (i%7)+1});
   }
   updateUI();
 }
+
 
 document.addEventListener('keydown', e=>{
   e.preventDefault(); // evita scroll
@@ -169,17 +176,19 @@ function gameTick(){
   snake.unshift(head);
 
   let ate=false;
-  for(let i=0;i<foodList.length;i++){
-    const f=foodList[i];
-    if(f.x===head.x && f.y===head.y){
-      eatSound.currentTime=0; eatSound.play();
-      score+=10*(f.stars||1);
-      foodList.splice(i,1);
-      ate=true;
-      spawnFood(); // aparece otra bola inmediatamente
-      break;
-    }
+for(let i=0; i<foodList.length; i++){
+  const f = foodList[i];
+  if(f.x===head.x && f.y===head.y){
+    eatSound.currentTime=0; eatSound.play();
+    score += 10*(f.stars||1);
+    foodList.splice(i,1);
+    ate = true;
+    // Si estamos en nivel >=2, generamos otra bola al instante
+    if(level >= 2) spawnFood();
+    break;
   }
+}
+
   if(!ate) snake.pop();
   updateUI();
 
@@ -309,3 +318,4 @@ window.addEventListener('resize',()=>{ draw(); });
 </script>
 </body>
 </html>
+
