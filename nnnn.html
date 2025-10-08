@@ -52,7 +52,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// Configuración de Firebase actualizada
+// Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDvewyV9qxnAX9sHsbbWdKWLFOi1R13mrY",
   authDomain: "snake-dragon-ball-cb4ef.firebaseapp.com",
@@ -88,14 +88,20 @@ let running=false, paused=false, gameInterval=null, level=1, boardExpanded=false
 
 /* ===== Login opcional ===== */
 loginBtn.addEventListener('click', async ()=>{
-  if(location.protocol==="file:"){ alert("Para login debes abrir el juego en Live Server (http://)"); return; }
+  if(location.protocol==="file:"){ 
+    alert("Para login debes abrir el juego en un servidor (http:// o https://)"); 
+    return; 
+  }
   const provider = new firebase.auth.GoogleAuthProvider();
   try {
     const res = await auth.signInWithPopup(provider);
     currentUser = res.user;
     userEl.textContent = `Conectado: ${currentUser.displayName}`;
     loginBtn.style.display='none';
-  } catch(err){ console.error(err); alert("Error al iniciar sesión: "+err.message); }
+  } catch(err){ 
+    console.error(err); 
+    alert("Error al iniciar sesión: "+err.message); 
+  }
 });
 
 /* ===== Juego ===== */
