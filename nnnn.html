@@ -1,190 +1,259 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Snake Dragon Ball</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Dragon Snake DBZ - Ranking</title>
 <style>
-  body { margin:0; background:black; overflow:hidden; color:white; text-align:center; font-family:Arial; }
-  canvas { background:url('https://i.imgur.com/qxB8R1F.png'); background-size:cover; display:block; margin:auto; }
-  #overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); color:white; display:flex; align-items:center; justify-content:center; font-size:24px; visibility:hidden; }
+  :root { --cell: 30px; }
+  body { margin:0; background:#000; color:#fff; font-family:"Segoe UI",sans-serif; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; }
+  h1 { color:gold; text-shadow:0 0 12px orange; margin:0; }
+  #topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:600px; }
+  #user { font-size:14px; color:#ffd; }
+  #score { color:#ffcc00; text-shadow:0 0 8px #a00; margin-left:auto; }
+  button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:600; cursor:pointer; }
+  #gameCanvas { border:3px solid gold; border-radius:10px; box-shadow:0 0 25px gold; width:600px; height:600px; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; display:block; }
+  #overlay { position:absolute; left:50%; transform:translateX(-50%); top:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.7); color:gold; padding:18px 24px; border-radius:12px; font-weight:700; display:none; text-align:center; box-shadow:0 0 30px rgba(255,215,0,0.4); }
+  #ranking { max-width:600px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
+  #ranking h2 { margin:4px 0; color:#ffd700; text-align:center; }
+  #ranking ul { list-style:none; padding:0; margin:0; }
+  #ranking li { margin:2px 0; }
+  @media(max-width:640px){ #gameCanvas{width:90vw;height:90vw;} }
 </style>
 </head>
 <body>
-<canvas id="game" width="480" height="480"></canvas>
+<h1>Dragon Snake DBZ</h1>
+<div id="topbar">
+  <div id="user">No has iniciado sesión</div>
+  <button id="loginBtn">Iniciar sesión con Google</button>
+  <div id="score">Puntuación: 0 | Bolas: 0 | Nivel: 1</div>
+</div>
+
+<canvas id="gameCanvas" width="600" height="600"></canvas>
+
+<div style="margin-top:6px">
+  <button id="startBtn">Iniciar</button>
+  <button id="pauseBtn">Pausa</button>
+  <button id="restartBtn" style="display:none">Reiniciar</button>
+</div>
+
 <div id="overlay"></div>
 
+<div id="ranking">
+  <h2>Ranking</h2>
+  <ul id="rankingList"><li>Cargando...</li></ul>
+</div>
+
+<audio id="eatSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="teleportSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
-// ==== CONFIGURACIÓN ====
-const CELL=24;
-const COLS=20, ROWS=20;
-const ctx=document.getElementById('game').getContext('2d');
-let snake=[{x:10,y:10}];
-let dir={x:0,y:0};
-let nextDir={x:0,y:0};
-let foodList=[];
-let level=1;
-let running=false;
-let boardExpanded=false;
-let teleportSound=new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+// Configuración de Firebase actualizada
+const firebaseConfig = {
+  apiKey: "AIzaSyDvewyV9qxnAX9sHsbbWdKWLFOi1R13mrY",
+  authDomain: "snake-dragon-ball-cb4ef.firebaseapp.com",
+  projectId: "snake-dragon-ball-cb4ef",
+  storageBucket: "snake-dragon-ball-cb4ef.firebasestorage.app",
+  messagingSenderId: "82216464295",
+  appId: "1:82216464295:web:9505b08e5114f9f948d082",
+  measurementId: "G-S4SHGH26KC"
+};
 
-// ==== INICIO ====
-spawnFood();
-draw();
-document.addEventListener('keydown',e=>{
-  if(!running) return;
+// Inicialización Firebase
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-  // 🔒 Evitar scroll con flechas
-  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
-    e.preventDefault();
+/* ===== Variables del juego ===== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const loginBtn = document.getElementById('loginBtn');
+const userEl = document.getElementById('user');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
+const overlay = document.getElementById('overlay');
+const rankingList = document.getElementById('rankingList');
+const eatSound = document.getElementById('eatSound');
+const teleportSound = document.getElementById('teleportSound');
+
+let CELL = 30, COLS = Math.floor(canvas.width / CELL), ROWS = Math.floor(canvas.height / CELL);
+let snake=[], dir={x:1,y:0}, nextDir=null, foodList=[], score=0;
+let running=false, paused=false, gameInterval=null, level=1, boardExpanded=false, currentUser=null;
+
+/* ===== Login opcional ===== */
+loginBtn.addEventListener('click', async ()=>{
+  if(location.protocol==="file:"){ alert("Para login debes abrir el juego en Live Server (http://)"); return; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    const res = await auth.signInWithPopup(provider);
+    currentUser = res.user;
+    userEl.textContent = `Conectado: ${currentUser.displayName}`;
+    loginBtn.style.display='none';
+  } catch(err){ console.error(err); alert("Error al iniciar sesión: "+err.message); }
+});
+
+/* ===== Juego ===== */
+function resetGame(){
+  snake=[]; const sx=Math.floor(COLS/2), sy=Math.floor(ROWS/2);
+  for(let i=0;i<4;i++) snake.push({x:sx-i,y:sy});
+  dir={x:1,y:0}; nextDir=null; score=0; level=1; boardExpanded=false; running=false; paused=false;
+  spawnFood(); updateUI(); draw();
+}
+
+function spawnFood(){
+  foodList=[]; const balls=(level===1)?7:5+Math.floor(Math.random()*5);
+  for(let i=0;i<balls;i++){
+    let fx,fy;
+    do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
+    while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
+    foodList.push({x:fx,y:fy,stars:(i%7)+1});
   }
+  updateUI();
+}
 
+document.addEventListener('keydown', e=>{
+  if(!running) return;
   if((e.key==='ArrowUp'||e.key==='w')&&dir.y!==1) nextDir={x:0,y:-1};
   if((e.key==='ArrowDown'||e.key==='s')&&dir.y!==-1) nextDir={x:0,y:1};
   if((e.key==='ArrowLeft'||e.key==='a')&&dir.x!==1) nextDir={x:-1,y:0};
   if((e.key==='ArrowRight'||e.key==='d')&&dir.x!==-1) nextDir={x:1,y:0};
-  if(e.key===' '&&!running) startGame();
 });
 
-function startGame(){
-  snake=[{x:10,y:10}];
-  dir={x:1,y:0};
-  nextDir={x:1,y:0};
-  running=true;
-  gameTick();
-}
-
-function spawnFood(){
-  foodList=[];
-  for(let i=0;i<7;i++){
-    foodList.push({
-      x:Math.floor(Math.random()*COLS),
-      y:Math.floor(Math.random()*ROWS),
-      stars:i+1
-    });
+function gameTick(){
+  if(nextDir){ dir=nextDir; nextDir=null; }
+  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS) return endGame();
+  if(snake.some((s,i)=>i>0&&s.x===head.x&&s.y===head.y)) return endGame();
+  snake.unshift(head);
+  let ate=false;
+  for(let i=0;i<foodList.length;i++){
+    const f=foodList[i];
+    if(f.x===head.x&&f.y===head.y){ eatSound.currentTime=0; eatSound.play(); score+=10*(f.stars||1); foodList.splice(i,1); ate=true; break;}
   }
-}
-
-function drawDragonBall(x,y,stars){
-  const colors=['#ffa500','#ffbf00','#ffcc00'];
-  ctx.fillStyle=colors[stars%3];
-  ctx.beginPath();
-  ctx.arc(x+CELL/2,y+CELL/2,CELL/2.2,0,Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle='red';
-  for(let i=0;i<stars;i++){
-    const angle=i*(Math.PI*2/stars);
-    ctx.beginPath();
-    ctx.arc(x+CELL/2+Math.cos(angle)*6,y+CELL/2+Math.sin(angle)*6,2,0,Math.PI*2);
-    ctx.fill();
+  if(!ate) snake.pop(); updateUI();
+  if(foodList.length===0){
+    if(level===1){ showOverlay("¡Has reunido las 7 Bolas del Dragón!\nShenlong te teletransporta...",1800); teleportToCenter(); level=2; spawnFood(); teleportSound.currentTime=0; teleportSound.play(); }
+    else if(!boardExpanded){ expandBoard(); spawnFood(); } else spawnFood();
   }
-}
-
-function draw(){
-  ctx.clearRect(0,0,480,480);
-  for(const f of foodList){ drawDragonBall(f.x*CELL,f.y*CELL,f.stars); }
-  ctx.fillStyle='lime';
-  for(const s of snake){ ctx.fillRect(s.x*CELL,s.y*CELL,CELL-2,CELL-2); }
-}
-
-function showOverlay(msg,time=1500){
-  const o=document.getElementById('overlay');
-  o.textContent=msg;
-  o.style.visibility='visible';
-  setTimeout(()=>o.style.visibility='hidden',time);
 }
 
 function teleportToCenter(){
-  snake[0].x=Math.floor(COLS/2);
-  snake[0].y=Math.floor(ROWS/2);
+  const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2), dx=hx-snake[0].x, dy=hy-snake[0].y;
+  for(let i=0;i<snake.length;i++){ snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx)); snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy)); }
 }
 
-function showEpicDragonBallsAnimation(callback){
-  const hx = snake[0].x*CELL + CELL/2;
-  const hy = snake[0].y*CELL + CELL/2;
-  const colors = ['#ffd700','#ffec8b','#fffacd'];
-  let particles = [];
+function expandBoard(){ showOverlay("¡El tablero se expande! Ahora sigue hasta que mueras...",2000); COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; teleportToCenter(); boardExpanded=true; }
 
-  // Crear partículas doradas
-  for(let i=0;i<100;i++){
-      particles.push({
-          x:hx, y:hy,
-          vx:(Math.random()-0.5)*5,
-          vy:(Math.random()-0.5)*5,
-          alpha:1,
-          color: colors[Math.floor(Math.random()*colors.length)],
-          size: Math.random()*5+2
-      });
+function updateUI(){ scoreEl.textContent=`Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`; }
+
+function showOverlay(text,ms=1500){ overlay.style.display='block'; overlay.innerText=text; overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)'; setTimeout(()=>{ overlay.style.display='none'; },ms); }
+
+async function endGame(){
+  clearInterval(gameInterval); running=false; showOverlay(`¡Has muerto!\nPuntuación: ${score}`,3500); restartBtn.style.display='inline-block';
+  if(currentUser){
+    try{ await db.collection('rankings').add({uid:currentUser.uid,name:currentUser.displayName||currentUser.email||"Jugador",score:score,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); fetchRanking(); }
+    catch(e){ console.error(e);}
   }
-
-  let frames = 0;
-  function animate(){
-      frames++;
-      draw(); // dibuja el juego normalmente
-
-      // bolas brillando
-      for(const f of foodList){
-          const cx = f.x*CELL + CELL/2;
-          const cy = f.y*CELL + CELL/2;
-          const pulse = Math.sin(frames/5)*0.3 + 1;
-          ctx.save();
-          ctx.translate(cx,cy);
-          ctx.scale(pulse,pulse);
-          drawDragonBall(-CELL/2,-CELL/2,f.stars);
-          ctx.restore();
-      }
-
-      // partículas
-      for(const p of particles){
-          p.x += p.vx; p.y += p.vy;
-          p.alpha -= 0.03;
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = Math.max(p.alpha,0);
-          ctx.beginPath();
-          ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-          ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-
-      if(frames<60) requestAnimationFrame(animate);
-      else callback();
-  }
-  animate();
 }
 
-function gameTick(){
-  if(!running) return;
-  dir=nextDir;
-  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+/* ===== Botones ===== */
+startBtn.addEventListener('click', ()=>{
+  resetGame(); running=true; startBtn.style.display='none'; pauseBtn.style.display='inline-block'; restartBtn.style.display='none';
+  if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7);
+});
+pauseBtn.addEventListener('click',()=>{ if(!running) return; paused=!paused; pauseBtn.textContent=paused?'Reanudar':'Pausa'; });
+restartBtn.addEventListener('click',()=>{ resetGame(); running=true; paused=false; restartBtn.style.display='none'; pauseBtn.style.display='inline-block'; if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7); });
 
-  // colisiones
-  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS){
-    running=false; showOverlay("Game Over"); return;
+/* ===== Ranking ===== */
+async function fetchRanking(){
+  if(!firebaseConfig.apiKey) return;
+  try{
+    const snapshot = await db.collection('rankings').orderBy('score','desc').limit(10).get();
+    rankingList.innerHTML='';
+    snapshot.forEach(doc=>{ const d=doc.data(); rankingList.innerHTML+=`<li>${d.name}: ${d.score}</li>`; });
+    if(rankingList.innerHTML==='') rankingList.innerHTML='<li>No hay puntuaciones</li>';
+  }catch(e){ console.error(e); rankingList.innerHTML='<li>Error cargando ranking</li>'; }
+}
+fetchRanking();
+
+/* ===== Dibujar Dragón y Bolas ===== */
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='rgba(255,255,255,0.08)';
+  for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke(); }
+  for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke(); }
+
+  // bolas
+  for(const f of foodList) drawDragonBall(f.x*CELL,f.y*CELL,f.stars);
+
+  // dragón
+  drawDragon();
+
+  if(!running){
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='gold';
+    ctx.font=`${Math.max(16,Math.floor(canvas.width/20))}px Arial`;
+    ctx.textAlign='center';
+    ctx.fillText('Pulsa INICIAR',canvas.width/2,canvas.height/2);
+  }
+}
+
+function drawDragon(){
+  if(snake.length===0) return;
+  ctx.lineWidth=CELL*0.8; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.beginPath();
+  for(let i=0;i<snake.length;i++){ const p=snake[i]; const cx=p.x*CELL+CELL/2, cy=p.y*CELL+CELL/2; if(i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy); }
+  ctx.strokeStyle='#66ff66'; ctx.stroke();
+
+  // cabeza
+  const h=snake[0]; const hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
+  ctx.fillStyle='limegreen'; ctx.beginPath(); ctx.ellipse(hx,hy,CELL*0.6,CELL*0.45,0,0,Math.PI*2); ctx.fill();
+
+  // escamas
+  for(let i=1;i<snake.length;i++){ const s=snake[i]; const sx=s.x*CELL+CELL/2, sy=s.y*CELL+CELL/2;
+    ctx.save(); ctx.translate(sx,sy); const rot=(i%2===0)?-0.4:0.4; ctx.rotate(rot);
+    ctx.fillStyle=(i%3===0)?'#2e8b57':'#228b22'; ctx.beginPath(); ctx.ellipse(0,0,CELL*0.16,CELL*0.08,0,0,Math.PI*2); ctx.fill(); ctx.restore();
   }
 
-  snake.unshift(head);
-
-  const foodIndex=foodList.findIndex(f=>f.x===head.x&&f.y===head.y);
-  if(foodIndex!==-1){
-    foodList.splice(foodIndex,1);
-    if(foodList.length===0){
-      if(level===1){
-          // ⚡ animación al reunir las 7 bolas
-          showEpicDragonBallsAnimation(()=>{
-              showOverlay("¡Has reunido las 7 Bolas del Dragón!\nShenlong te teletransporta...",1800);
-              teleportToCenter();
-              level=2;
-              spawnFood();
-              teleportSound.currentTime=0;
-              teleportSound.play();
-          });
-      } else spawnFood();
-    }
-  } else snake.pop();
-
-  draw();
-  setTimeout(gameTick,150);
+  // ojos
+  const m=CELL*0.12; let eye={x:0,y:0};
+  if(dir.x===1) eye={x:m,y:0}; if(dir.x===-1) eye={x:-m,y:0};
+  if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(hx+eye.x-CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
+  ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
+  ctx.fill();
 }
+
+function drawDragonBall(px,py,stars){
+  const cx=px+CELL/2, cy=py+CELL/2, r=CELL*0.38;
+  const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.05,cx,cy,r);
+  g.addColorStop(0,'#fffacd'); g.addColorStop(0.3,'#ffb347'); g.addColorStop(1,'#ff7f00');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#a00';
+  for(let i=0;i<stars;i++){
+    const ang=(i/stars)*Math.PI*2;
+    const sx=cx+Math.cos(ang)*(r*0.45), sy=cy+Math.sin(ang)*(r*0.45);
+    drawStar(sx,sy,CELL*0.12,CELL*0.04);
+  }
+}
+
+function drawStar(cx,cy,outer,inner){
+  ctx.beginPath(); const spikes=5; let rot=Math.PI/2*3; const step=Math.PI/spikes;
+  ctx.moveTo(cx,cy-outer);
+  for(let i=0;i<spikes;i++){ ctx.lineTo(cx+Math.cos(rot)*outer,cy+Math.sin(rot)*outer); rot+=step; ctx.lineTo(cx+Math.cos(rot)*inner,cy+Math.sin(rot)*inner); rot+=step; }
+  ctx.closePath(); ctx.fill();
+}
+
+/* ===== Inicial ===== */
+resetGame(); draw();
+window.addEventListener('resize',()=>{ draw(); });
 </script>
 </body>
 </html>
