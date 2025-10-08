@@ -62,6 +62,7 @@ const firebaseConfig = {
   appId: "1:82216464295:web:9505b08e5114f9f948d082",
   measurementId: "G-S4SHGH26KC"
 };
+
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -105,12 +106,14 @@ function resetGame(){
 }
 
 function spawnFood(){
-  foodList=[]; const balls=(level===1)?7:5+Math.floor(Math.random()*5);
-  for(let i=0;i<balls;i++){
-    let fx,fy;
-    do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
-    while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
-    foodList.push({x:fx,y:fy,stars:(i%7)+1});
+  if(level===1){
+    foodList=[]; 
+    for(let i=0;i<7;i++){
+      let fx,fy;
+      do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
+      while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
+      foodList.push({x:fx,y:fy,stars:(i%7)+1});
+    }
   }
   updateUI();
 }
@@ -123,7 +126,7 @@ document.addEventListener('keydown', e=>{
   if((e.key==='ArrowRight'||e.key==='d')&&dir.x!==-1) nextDir={x:1,y:0};
 });
 
-function gameTick(){
+async function gameTick(){
   if(nextDir){ dir=nextDir; nextDir=null; }
   const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
   if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS) return endGame();
@@ -137,53 +140,41 @@ function gameTick(){
       score += 10*(f.stars||1);
       foodList.splice(i,1);
       ate=true;
-      if(level>=2) spawnFood(); // Nivel 2+ genera otra bola inmediatamente
+
+      if(level>=2){
+        let fx, fy;
+        do {
+          fx=Math.floor(Math.random()*COLS);
+          fy=Math.floor(Math.random()*ROWS);
+        } while(snake.some(s=>s.x===fx&&s.y===fy) || foodList.some(f=>f.x===fx&&f.y===fy));
+        foodList.push({x:fx,y:fy,stars:1});
+
+        const fxPx = fx*CELL + CELL/2, fyPx = fy*CELL + CELL/2;
+        const anim = setInterval(()=>{
+          ctx.beginPath();
+          ctx.arc(fxPx, fyPx, Math.random()*CELL*0.4 + CELL*0.1,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,255,0,0.5)'; ctx.fill();
+        },50);
+        setTimeout(()=>{ clearInterval(anim); },300);
+      }
       break;
     }
   }
-  if(!ate) snake.pop(); updateUI();
+
+  if(!ate) snake.pop(); 
+  updateUI();
 
   if(foodList.length===0 && level===1){
-    showShenlongTransition().then(()=>{
-      level=2;
-      spawnFood();
-    });
-  } else if(foodList.length===0 && !boardExpanded){
+    await showShenlongTransition();
+    level=2; spawnFood();
+  } else if(foodList.length===0 && level>=2 && !boardExpanded){
     expandBoard(); spawnFood();
-  } else if(foodList.length===0 && level>=2){
-    spawnFood();
   }
 }
 
 function teleportToCenter(){
-  const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2);
-  const dx=hx-snake[0].x, dy=hy-snake[0].y;
-  for(let i=0;i<snake.length;i++){
-    snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx));
-    snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy));
-  }
-}
-
-function showShenlongTransition(){
-  return new Promise(resolve=>{
-    overlay.style.display='block';
-    overlay.innerHTML = `<img src="https://i.imgur.com/Ff5Wb0v.png" style="width:250px;height:auto;animation:fadeInOut 2s;"> <br>¡Shenlong te teletransporta!`;
-    overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)';
-    const style = document.createElement('style');
-    style.innerHTML = `
-      @keyframes fadeInOut {
-        0% { opacity:0; transform: scale(0.5);}
-        50% { opacity:1; transform: scale(1.2);}
-        100% { opacity:0; transform: scale(1);}
-      }`;
-    document.head.appendChild(style);
-    teleportToCenter();
-    teleportSound.currentTime=0; teleportSound.play();
-    setTimeout(()=>{
-      overlay.style.display='none';
-      resolve();
-    },2000);
-  });
+  const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2), dx=hx-snake[0].x, dy=hy-snake[0].y;
+  for(let i=0;i<snake.length;i++){ snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx)); snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy)); }
 }
 
 function expandBoard(){ showOverlay("¡El tablero se expande! Ahora sigue hasta que mueras...",2000); COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; teleportToCenter(); boardExpanded=true; }
@@ -191,6 +182,25 @@ function expandBoard(){ showOverlay("¡El tablero se expande! Ahora sigue hasta 
 function updateUI(){ scoreEl.textContent=`Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`; }
 
 function showOverlay(text,ms=1500){ overlay.style.display='block'; overlay.innerText=text; overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)'; setTimeout(()=>{ overlay.style.display='none'; },ms); }
+
+async function showShenlongTransition(){
+  return new Promise(resolve=>{
+    overlay.style.display='block';
+    overlay.innerHTML = `<img src="https://i.imgur.com/Ff5Wb0v.png" style="width:250px;height:auto;animation:fadeInOut 2s;"> <br>¡Shenlong te teletransporta!`;
+    overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)';
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes fadeInOut {
+        0% { opacity:0; transform: scale(0.5) rotate(0deg);}
+        50% { opacity:1; transform: scale(1.2) rotate(720deg);}
+        100% { opacity:0; transform: scale(1) rotate(0deg);}
+      }`;
+    document.head.appendChild(style);
+    teleportToCenter();
+    teleportSound.currentTime=0; teleportSound.play();
+    setTimeout(()=>{ overlay.style.display='none'; resolve(); },2000);
+  });
+}
 
 async function endGame(){
   clearInterval(gameInterval); running=false; showOverlay(`¡Has muerto!\nPuntuación: ${score}`,3500); restartBtn.style.display='inline-block';
@@ -203,8 +213,7 @@ async function endGame(){
 /* ===== Botones ===== */
 startBtn.addEventListener('click', ()=>{
   resetGame(); running=true; startBtn.style.display='none'; pauseBtn.style.display='inline-block'; restartBtn.style.display='none';
-  if(gameInterval) clearInterval(gameInterval); 
-  gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7);
+  if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7);
 });
 pauseBtn.addEventListener('click',()=>{ if(!running) return; paused=!paused; pauseBtn.textContent=paused?'Reanudar':'Pausa'; });
 restartBtn.addEventListener('click',()=>{ resetGame(); running=true; paused=false; restartBtn.style.display='none'; pauseBtn.style.display='inline-block'; if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7); });
@@ -228,10 +237,7 @@ function draw(){
   for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke(); }
   for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke(); }
 
-  // bolas
   for(const f of foodList) drawDragonBall(f.x*CELL,f.y*CELL,f.stars);
-
-  // dragón
   drawDragon();
 
   if(!running){
@@ -260,17 +266,18 @@ function drawDragon(){
   if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
   ctx.fillStyle='#000';
   ctx.beginPath(); ctx.arc(hx+eye.x-CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
-  ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI); ctx.fill();
+  ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
+  ctx.fill();
 }
 
 function drawDragonBall(px,py,stars){
   const cx=px+CELL/2, cy=py+CELL/2, r=CELL*0.38;
   const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.05,cx,cy,r);
   g.addColorStop(0,'#fffacd'); g.addColorStop(0.3,'#ffb347'); g.addColorStop(1,'#ff7f00');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.fill();
   ctx.fillStyle='#a00';
   for(let i=0;i<stars;i++){
-    const ang=(i/stars)*Math.PI*2;
+    const ang=(i/stars)*2*Math.PI;
     const sx=cx+Math.cos(ang)*(r*0.45), sy=cy+Math.sin(ang)*(r*0.45);
     drawStar(sx,sy,CELL*0.12,CELL*0.04);
   }
