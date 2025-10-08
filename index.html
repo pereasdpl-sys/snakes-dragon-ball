@@ -8,18 +8,20 @@
   :root { --cell: 30px; }
   body { margin:0; background:#000; color:#fff; font-family:"Segoe UI",sans-serif; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; overflow:auto;}
   h1 { color:gold; text-shadow:0 0 12px orange; margin:0; }
-  #topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:600px; }
+  #topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:720px; }
   #user { font-size:14px; color:#ffd; }
   #score { color:#ffcc00; text-shadow:0 0 8px #a00; margin-left:auto; }
-  button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:600; cursor:pointer; }
-  #gameCanvas { border:3px solid gold; border-radius:10px; box-shadow:0 0 25px gold; width:600px; height:600px; display:block; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; }
-  #overlay { position:absolute; left:50%; transform:translateX(-50%) translateY(-50%); background:rgba(0,0,0,0.8); color:gold; padding:24px 32px; border-radius:12px; font-weight:700; display:none; text-align:center; box-shadow:0 0 40px rgba(255,215,0,0.6); font-size:20px;}
-  #ranking { max-width:600px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
+  button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:700; cursor:pointer; }
+  #gameCanvas { border:3px solid gold; border-radius:12px; box-shadow:0 0 30px gold; width:600px; height:600px; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; display:block; }
+  #overlay { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:520px; max-width:90vw; pointer-events:none; display:none; z-index:50; text-align:center; }
+  #overlay .bg { background:linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0.6)); border-radius:14px; padding:18px 22px; color:gold; box-shadow:0 0 60px rgba(255,215,0,0.45); }
+  #overlay img { width:320px; max-width:80%; display:block; margin:8px auto 0; transform-origin:center; }
+  #ranking { max-width:720px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
   #ranking h2 { margin:4px 0; color:#ffd700; text-align:center; }
   #ranking ul { list-style:none; padding:0; margin:0; }
-  #ranking li { margin:2px 0; color: #ffcc00; }
-  #skins { max-width:600px; width:100%; margin-top:8px; border:2px solid cyan; border-radius:12px; padding:6px; background:rgba(0,0,0,0.5); display:flex; gap:6px; overflow-x:auto;}
-  .skin { width:40px; height:40px; border:2px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; }
+  #ranking li { margin:2px 0; color:#fff; }
+  #skins { max-width:720px; width:100%; margin-top:8px; border:2px solid cyan; border-radius:12px; padding:6px; background:rgba(0,0,0,0.5); display:flex; gap:6px; overflow-x:auto;}
+  .skin { width:44px; height:44px; border:2px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; user-select:none; }
   @media(max-width:640px){ #gameCanvas{width:90vw;height:90vw;} }
 </style>
 </head>
@@ -39,7 +41,13 @@
   <button id="restartBtn" style="display:none">Reiniciar</button>
 </div>
 
-<div id="overlay"></div>
+<!-- Overlay de transición (Shenlong) -->
+<div id="overlay">
+  <div class="bg">
+    <div id="overlayText" style="font-size:20px; font-weight:900; letter-spacing:0.5px;"></div>
+    <img id="overlayImg" src="https://i.imgur.com/Ff5Wb0v.png" alt="Shenlong" />
+  </div>
+</div>
 
 <div id="ranking">
   <h2>Ranking</h2>
@@ -56,6 +64,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
+// ---------- CONFIG FIREBASE ----------
 const firebaseConfig = {
   apiKey: "AIzaSyDvewyV9qxnAX9sHsbbWdKWLFOi1R13mrY",
   authDomain: "snake-dragon-ball-cb4ef.firebaseapp.com",
@@ -65,102 +74,159 @@ const firebaseConfig = {
   appId: "1:82216464295:web:9505b08e5114f9f948d082",
   measurementId: "G-S4SHGH26KC"
 };
-
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
-const loginBtn = document.getElementById('loginBtn');
-const userEl = document.getElementById('user');
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const restartBtn = document.getElementById('restartBtn');
-const overlay = document.getElementById('overlay');
-const rankingList = document.getElementById('rankingList');
-const skinsContainer = document.getElementById('skins');
-const eatSound = document.getElementById('eatSound');
-const teleportSound = document.getElementById('teleportSound');
+// ---------- ELEMENTOS ----------
+const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score'), loginBtn = document.getElementById('loginBtn'), userEl = document.getElementById('user');
+const startBtn = document.getElementById('startBtn'), pauseBtn = document.getElementById('pauseBtn'), restartBtn = document.getElementById('restartBtn');
+const overlay = document.getElementById('overlay'), overlayText = document.getElementById('overlayText'), overlayImg = document.getElementById('overlayImg');
+const rankingList = document.getElementById('rankingList'), skinsContainer = document.getElementById('skins');
+const eatSound = document.getElementById('eatSound'), teleportSound = document.getElementById('teleportSound');
 
-let CELL=30, COLS=Math.floor(canvas.width/CELL), ROWS=Math.floor(canvas.height/CELL);
-let snake=[], dir={x:1,y:0}, nextDir=null, foodList=[], score=0;
-let running=false, paused=false, gameInterval=null, level=1, boardExpanded=false, currentUser=null;
-let particles=[]; // partículas para transición
-let traps=[]; // trampas en el tablero
-let speed=7;
-let currentSkin='green';
+// ---------- ESTADO BASE ----------
+const BASE_COLS = 20, BASE_ROWS = 20, BASE_SPEED = 7;
+let CELL = 30, COLS = BASE_COLS, ROWS = BASE_ROWS;
+canvas.width = COLS * CELL; canvas.height = ROWS * CELL;
 
-/* Login */
+let snake = [], dir = {x:1,y:0}, nextDir = null, foodList = [], score = 0;
+let running=false, paused=false, gameInterval = null, level = 1, boardExpanded=false, currentUser = null;
+let particles = [], traps = [], speed = BASE_SPEED;
+let currentSkin = 'G';
+
+// ---------- LOGIN ----------
 loginBtn.addEventListener('click', async ()=>{
-  if(location.protocol==="file:"){ alert("Para login debes abrir el juego en Live Server (http://)"); return; }
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try {
+  if(location.protocol==="file:"){ alert("Abre en Live Server para usar login"); return; }
+  try{
+    const provider = new firebase.auth.GoogleAuthProvider();
     const res = await auth.signInWithPopup(provider);
     currentUser = res.user;
     userEl.textContent = `Conectado: ${currentUser.displayName}`;
     loginBtn.style.display='none';
-  } catch(err){ console.error(err); alert("Error al iniciar sesión: "+err.message); }
+  }catch(e){ console.error(e); alert("Error login: "+e.message); }
 });
 
-/* ===== Juego ===== */
+// ---------- SKINS (catálogo) ----------
+const skins = [
+  {id:'G', label:'G', cost:0, color:'#66ff66'}, 
+  {id:'R', label:'R', cost:50, color:'#ff6666'},
+  {id:'B', label:'B', cost:120, color:'#6699ff'},
+  {id:'Y', label:'Y', cost:250, color:'#ffff66'}
+];
+function renderSkins(){
+  skinsContainer.innerHTML='';
+  skins.forEach(s=>{
+    const d = document.createElement('div');
+    d.className = 'skin';
+    d.title = `${s.id} - ${s.cost} pts`;
+    d.innerText = s.label;
+    d.style.background = s.color;
+    d.onclick = ()=> {
+      if(score >= s.cost || s.cost===0){ currentSkin = s.id; } else { alert(`Necesitas ${s.cost} puntos para esta skin.`); }
+    };
+    if(currentSkin===s.id) d.style.boxShadow = '0 0 8px cyan';
+    skinsContainer.appendChild(d);
+  });
+}
+renderSkins();
+
+// ---------- GAME: spawn y reset ----------
 function resetGame(){
-  snake=[]; const sx=Math.floor(COLS/2), sy=Math.floor(ROWS/2);
+  // reset tablero y variables base
+  COLS = BASE_COLS; ROWS = BASE_ROWS; canvas.width = COLS*CELL; canvas.height = ROWS*CELL;
+  snake = []; const sx=Math.floor(COLS/2), sy=Math.floor(ROWS/2);
   for(let i=0;i<4;i++) snake.push({x:sx-i,y:sy});
-  dir={x:1,y:0}; nextDir=null; score=0; level=1; boardExpanded=false; running=false; paused=false; speed=7;
-  traps=[];
-  spawnFood(7); // Nivel 1: 7 bolas fijas
-  updateUI(); draw();
+  dir = {x:1,y:0}; nextDir = null;
+  score = 0; level = 1; boardExpanded=false; traps = []; particles = []; speed = BASE_SPEED;
+  foodList = [];
+  spawnFixed7(); updateUI(); renderSkins();
+  // stop intervals & start drawing loop
+  if(gameInterval) clearInterval(gameInterval);
+  gameInterval = setInterval(()=>{ if(running && !paused) gameTick(); }, 1000/speed);
 }
 
-function spawnFood(count=1){
-  for(let i=0;i<count;i++){
-    let fx,fy;
-    do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
-    while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
-    foodList.push({x:fx,y:fy,stars:(Math.floor(Math.random()*7)+1)});
+function spawnFixed7(){
+  // Nivel 1: exactamente 7 bolas, no se generan más hasta cogerlas todas
+  foodList = [];
+  for(let i=0;i<7;i++){
+    let fx, fy;
+    do { fx = Math.floor(Math.random()*COLS); fy = Math.floor(Math.random()*ROWS); }
+    while(snake.some(s=>s.x===fx&&s.y===fy) || foodList.some(f=>f.x===fx&&f.y===fy));
+    foodList.push({x:fx,y:fy,stars:((i)%7)+1});
   }
 }
 
-function spawnFoodGroup(){
-  let group = (snake.length>=18)?3:(snake.length>=12)?2:1;
-  spawnFood(group);
+function spawnGroup(count){
+  // spawn 'count' bolas en lugares libres
+  for(let k=0;k<count;k++){
+    let fx, fy;
+    let attempts=0;
+    do {
+      fx = Math.floor(Math.random()*COLS);
+      fy = Math.floor(Math.random()*ROWS);
+      attempts++;
+      if(attempts>200) break;
+    } while(snake.some(s=>s.x===fx&&s.y===fy) || foodList.some(f=>f.x===fx&&f.y===fy) || traps.some(t=>t.x===fx&&t.y===fy));
+    foodList.push({x:fx,y:fy,stars:Math.floor(Math.random()*7)+1});
+    // tiny particle to highlight spawn
+    particles.push({x:fx*CELL+CELL/2, y:fy*CELL+CELL/2, vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2, alpha:1, size:3});
+  }
 }
 
-function spawnTraps(count=2){
+function spawnForLevel2Initial(){
+  // level2 initial: 8 or 9 bolas
+  const balls = 8 + Math.floor(Math.random()*2); // 8 or 9
+  spawnGroup(balls);
+}
+
+function spawnTraps(count){
   for(let i=0;i<count;i++){
-    let tx,ty;
-    do{ tx=Math.floor(Math.random()*COLS); ty=Math.floor(Math.random()*ROWS);}
-    while(snake.some(s=>s.x===tx&&s.y===ty)||foodList.some(f=>f.x===tx&&f.y===ty)||traps.some(t=>t.x===tx&&t.y===ty));
+    let tx, ty;
+    let attempts=0;
+    do {
+      tx = Math.floor(Math.random()*COLS);
+      ty = Math.floor(Math.random()*ROWS);
+      attempts++;
+      if(attempts>200) break;
+    } while(snake.some(s=>s.x===tx&&s.y===ty) || foodList.some(f=>f.x===tx&&f.y===ty) || traps.some(t=>t.x===tx&&t.y===ty));
     traps.push({x:tx,y:ty});
   }
 }
 
+// ---------- CONTROLES ----------
 document.addEventListener('keydown', e=>{
   if(!running) return;
-  if((e.key==='ArrowUp'||e.key==='w')&&dir.y!==1) nextDir={x:0,y:-1};
-  if((e.key==='ArrowDown'||e.key==='s')&&dir.y!==-1) nextDir={x:0,y:1};
-  if((e.key==='ArrowLeft'||e.key==='a')&&dir.x!==1) nextDir={x:-1,y:0};
-  if((e.key==='ArrowRight'||e.key==='d')&&dir.x!==-1) nextDir={x:1,y:0};
+  if((e.key==='ArrowUp'||e.key==='w') && dir.y!==1) nextDir={x:0,y:-1};
+  if((e.key==='ArrowDown'||e.key==='s') && dir.y!==-1) nextDir={x:0,y:1};
+  if((e.key==='ArrowLeft'||e.key==='a') && dir.x!==1) nextDir={x:-1,y:0};
+  if((e.key==='ArrowRight'||e.key==='d') && dir.x!==-1) nextDir={x:1,y:0};
 });
 
+// ---------- LÓGICA TICK ----------
 function gameTick(){
-  if(nextDir){ dir=nextDir; nextDir=null; }
-  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
-  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS) return endGame();
-  if(snake.some((s,i)=>i>0&&s.x===head.x&&s.y===head.y)) return endGame();
-  if(traps.some(t=>t.x===head.x&&t.y===head.y)) return endGame();
+  if(nextDir){ dir = nextDir; nextDir = null; }
+  const head = {x:snake[0].x + dir.x, y:snake[0].y + dir.y};
+
+  // colisiones paredes / cuerpo / trampas
+  if(head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) { return finishGame(); }
+  if(snake.some((s,i)=>i>0 && s.x===head.x && s.y===head.y)) { return finishGame(); }
+  if(traps.some(t=>t.x===head.x && t.y===head.y)) { return finishGame(); }
+
   snake.unshift(head);
 
+  // comprobar si come
   let ate=false;
   for(let i=0;i<foodList.length;i++){
-    const f=foodList[i];
-    if(f.x===head.x&&f.y===head.y){
-      eatSound.currentTime=0; eatSound.play();
-      score+=10*(f.stars||1);
+    const f = foodList[i];
+    if(f.x===head.x && f.y===head.y){
+      ate = true;
+      score += 10*(f.stars||1);
+      // sonido + partículas
+      eatSound.currentTime = 0; eatSound.play();
+      // eliminar la comida
       foodList.splice(i,1);
-      ate=true;
       break;
     }
   }
@@ -168,186 +234,274 @@ function gameTick(){
   if(!ate) snake.pop();
   updateUI();
 
-  // Comer bolas
-  if(ate && level>1) spawnFoodGroup();
+  // Si comió y estamos en nivel >1, generar grupo según longitud
+  if(ate && level>1){
+    const len = snake.length;
+    let group = 1;
+    if(len >= 18) group = 3;
+    else if(len >= 12) group = 2;
+    spawnGroup(group);
+  }
 
-  // Nivel 1: pasar al nivel 2
+  // Si estamos en Nivel 1 y no quedan bolas => transición
   if(level===1 && foodList.length===0){
-    showTransition("¡Has reunido las 7 Bolas del Dragón!");
-    level=2;
-    expandBoard();
-    spawnFoodGroup();
-    spawnTraps(3);
-    speed=9;
+    // transición Shinlong "guapa" y luego pasar a nivel 2
+    doLevel1Transition();
+  }
+
+  // Si nivel >=2 y no quedan (posible) generamos más
+  if(level>1 && foodList.length===0){
+    // si no se ha expandido, expandir y meter trampas la primera vez
+    if(!boardExpanded){
+      expandBoardAfterLevel();
+    } else {
+      // si tablero ya expandido, respawn normal (8-9)
+      spawnForLevel2Initial();
+    }
   }
 }
 
-function expandBoard(){ 
-  COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; 
-  teleportToCenter(); boardExpanded=true; 
-}
-
-function teleportToCenter(){
-  const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2), dx=hx-snake[0].x, dy=hy-snake[0].y;
-  for(let i=0;i<snake.length;i++){ snake[i].x+=dx; snake[i].y+=dy; }
-  // partículas
-  for(let i=0;i<50;i++){
-    particles.push({x:snake[0].x*CELL, y:snake[0].y*CELL, vx:(Math.random()-0.5)*4, vy:(Math.random()-0.5)*4, alpha:1});
-  }
-  teleportSound.currentTime=0; teleportSound.play();
-}
-
-function showTransition(text){
+// ---------- TRANSICIONES Y NIVELES ----------
+function doLevel1Transition(){
+  // mostramos overlay con Shenlong, partículas y animación
+  overlayText.innerText = "¡Has reunido las 7 Bolas del Dragón!\nShenlong te concede un deseo...";
   overlay.style.display='block';
-  overlay.innerText=text;
-  setTimeout(()=>{ overlay.style.display='none'; },2000);
+  overlayImg.style.transform = 'scale(0.6) rotate(0deg)';
+  overlayImg.style.opacity = 0;
+  // animación: brillo + zoom rotatorio
+  let t=0;
+  const anim = setInterval(()=>{
+    t++;
+    overlayImg.style.opacity = Math.min(1, t/20);
+    overlayImg.style.transform = `scale(${0.6 + 0.8*Math.sin(t/30)}) rotate(${t*8}deg)`;
+    // partículas durante transición
+    for(let i=0;i<6;i++){
+      particles.push({x:canvas.width/2 + (Math.random()-0.5)*80, y:canvas.height/2 + (Math.random()-0.5)*40, vx:(Math.random()-0.5)*4, vy:(Math.random()-0.5)*4, alpha:1, size:3});
+    }
+    if(t>80){
+      clearInterval(anim);
+      overlay.style.display='none';
+      // pasar a nivel 2: expandir tablero, aumentar velocidad, spawn inicial y trampas
+      level = 2;
+      expandBoardAfterLevel();
+    }
+  },16);
 }
 
-function updateUI(){
-  scoreEl.textContent=`Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`;
-  updateSkins();
-}
-
-function drawParticles(){
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];
-    p.x+=p.vx; p.y+=p.vy; p.alpha-=0.02;
-    ctx.fillStyle=`rgba(255,215,0,${p.alpha})`;
-    ctx.fillRect(p.x,p.y,4,4);
-    if(p.alpha<=0) particles.splice(i,1);
+function expandBoardAfterLevel(){
+  // aumenta tablero, sube velocidad, añade trampas y genera bolas iniciales (8-9)
+  boardExpanded = true;
+  // expandimos 10 columnas y filas
+  COLS += 10; ROWS += 10;
+  canvas.width = COLS*CELL; canvas.height = ROWS*CELL;
+  // teletransporta serpiente al centro (manteniendo forma)
+  const hx = Math.floor(COLS/2), hy = Math.floor(ROWS/2);
+  const dx = hx - snake[0].x, dy = hy - snake[0].y;
+  for(let i=0;i<snake.length;i++){ snake[i].x += dx; snake[i].y += dy; }
+  // subir velocidad
+  speed = Math.min(18, speed + 2);
+  if(gameInterval) { clearInterval(gameInterval); gameInterval = setInterval(()=>{ if(running && !paused) gameTick(); }, 1000/speed); }
+  // spawn bolas y trampas
+  spawnForLevel2Initial();
+  spawnTraps(3);
+  // partículas y sonido
+  teleportSound.currentTime = 0; teleportSound.play();
+  for(let i=0;i<60;i++){
+    particles.push({x:canvas.width/2 + (Math.random()-0.5)*200, y:canvas.height/2 + (Math.random()-0.5)*200, vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6, alpha:1, size:3});
   }
 }
 
-/* Ranking */
-async function fetchRanking(){
-  if(!firebaseConfig.apiKey) return;
-  try{
-    const snapshot = await db.collection('rankings').orderBy('score','desc').limit(10).get();
-    rankingList.innerHTML='';
-    snapshot.forEach(doc=>{
-      const d=doc.data();
-      rankingList.innerHTML+=`<li>${d.name}: ${d.score}</li>`;
-    });
-    if(rankingList.innerHTML==='') rankingList.innerHTML='<li>No hay puntuaciones</li>';
-  }catch(e){ console.error(e); rankingList.innerHTML='<li>Error cargando ranking</li>'; }
+// ---------- FIN/REINICIO ----------
+function finishGame(){
+  // show overlay / gameover and set restart visible
+  overlayText.innerText = `¡Has muerto!\nPuntuación: ${score}`;
+  overlay.style.display='block';
+  setTimeout(()=>{ overlay.style.display='none'; },1600);
+  running = false;
+  restartBtn.style.display='inline-block';
+  // actualizar ranking: mantener mejor puntuación por uid
+  if(currentUser){
+    (async ()=>{
+      try{
+        const q = await db.collection('rankings').where('uid','==',currentUser.uid).get();
+        if(!q.empty){
+          q.forEach(doc => {
+            const data = doc.data();
+            if(score > data.score) db.collection('rankings').doc(doc.id).update({score});
+          });
+        } else {
+          db.collection('rankings').add({uid:currentUser.uid, name:currentUser.displayName||currentUser.email, score, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+        }
+      }catch(e){ console.error(e); }
+      fetchRanking();
+    })();
+  }
 }
-fetchRanking();
 
-/* Skins */
-const skins=['G','R','B','Y'];
-function updateSkins(){
-  skinsContainer.innerHTML='';
-  skins.forEach(s=>{
-    const div=document.createElement('div');
-    div.className='skin'; div.textContent=s;
-    if(currentSkin===s) div.style.border='3px solid cyan';
-    div.onclick=()=>{ currentSkin=s; }
-    skinsContainer.appendChild(div);
-  });
+// Reiniciar -> volver a nivel 1 limpio
+restartBtn.addEventListener('click', ()=>{
+  running = false;
+  if(gameInterval) clearInterval(gameInterval);
+  resetGame();
+  restartBtn.style.display='none';
+  startBtn.style.display='inline-block';
+});
+
+// start / pause
+startBtn.addEventListener('click', ()=>{
+  running = true;
+  startBtn.style.display='none';
+  pauseBtn.style.display='inline-block';
+  if(gameInterval) clearInterval(gameInterval);
+  gameInterval = setInterval(()=>{ if(running && !paused) gameTick(); }, 1000/speed);
+});
+pauseBtn.addEventListener('click', ()=>{ if(!running) return; paused = !paused; pauseBtn.textContent = paused ? 'Reanudar' : 'Pausa'; });
+
+// ---------- PARTICULAS & DIBUJO ----------
+function stepParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.alpha -= 0.02;
+    if(p.alpha <= 0) particles.splice(i,1);
+  }
 }
 
-/* ===== Dibujar ===== */
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // tablero
-  ctx.strokeStyle='rgba(255,255,255,0.08)';
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,0.06)';
   for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke(); }
   for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke(); }
 
-  // trampas
-  ctx.fillStyle='red';
-  for(const t of traps){ ctx.fillRect(t.x*CELL,t.y*CELL,CELL,CELL); }
+  // traps
+  ctx.fillStyle='rgba(200,0,0,0.9)';
+  for(const t of traps){ ctx.fillRect(t.x*CELL + 2, t.y*CELL + 2, CELL-4, CELL-4); }
 
   // bolas
-  for(const f of foodList) drawDragonBall(f.x*CELL,f.y*CELL,f.stars);
+  for(const f of foodList) drawDragonBall(f.x*CELL, f.y*CELL, f.stars);
 
-  // dragón
+  // dragon (más curvado)
   drawDragon();
 
-  drawParticles();
+  // particles
+  for(const p of particles){
+    ctx.fillStyle = `rgba(255,215,0,${p.alpha})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size || 3, 0, Math.PI*2); ctx.fill();
+  }
 
+  // dark overlay when not running
   if(!running){
-    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillStyle='rgba(0,0,0,0.45)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle='gold';
-    ctx.font=`${Math.max(16,Math.floor(canvas.width/20))}px Arial`;
+    ctx.font = `${Math.max(16, Math.floor(canvas.width/20))}px Arial`;
     ctx.textAlign='center';
-    ctx.fillText('Pulsa INICIAR',canvas.width/2,canvas.height/2);
+    ctx.fillText('Pulsa INICIAR', canvas.width/2, canvas.height/2);
+  }
+
+  // loop
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// ---------- DRAW HELPERS ----------
+function drawDragon(){
+  if(snake.length===0) return;
+  // stroke line
+  ctx.lineWidth = CELL*0.8; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
+  for(let i=0;i<snake.length;i++){
+    const p = snake[i]; const cx = p.x*CELL + CELL/2, cy = p.y*CELL + CELL/2;
+    if(i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
+  }
+  const color = currentSkin==='G' ? '#66ff66' : currentSkin==='R' ? '#ff7f7f' : currentSkin==='B' ? '#88bbff' : '#ffff88';
+  ctx.strokeStyle = color; ctx.stroke();
+
+  // head (ellipse + eyes)
+  const h = snake[0]; const hx = h.x*CELL + CELL/2, hy = h.y*CELL + CELL/2;
+  ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(hx,hy,CELL*0.6,CELL*0.45,0,0,Math.PI*2); ctx.fill();
+
+  // eyes
+  const m = CELL*0.12; let eye = {x:0,y:0};
+  if(dir.x===1) eye = {x:m,y:0}; if(dir.x===-1) eye={x:-m,y:0};
+  if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(hx+eye.x - CELL*0.14, hy - CELL*0.18 + eye.y, CELL*0.11,0,2*Math.PI);
+  ctx.arc(hx+eye.x + CELL*0.14, hy - CELL*0.18 + eye.y, CELL*0.11,0,2*Math.PI);
+  ctx.fill();
+
+  // body scales: small ellipses for a nicer rounded look
+  for(let i=1;i<snake.length;i++){
+    const s = snake[i]; const sx = s.x*CELL + CELL/2, sy = s.y*CELL + CELL/2;
+    const sc = 0.6 - i*0.015;
+    ctx.save(); ctx.translate(sx,sy); const rot = (i%2===0)? -0.25 : 0.25; ctx.rotate(rot);
+    ctx.fillStyle = (i%3===0) ? shadeColor(color, -15) : shadeColor(color, 5);
+    ctx.beginPath(); ctx.ellipse(0,0, CELL*sc, CELL*sc*0.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
   }
 }
 
-function drawDragon(){
-  if(snake.length===0) return;
-  ctx.lineWidth=CELL*0.8; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.beginPath();
-  for(let i=0;i<snake.length;i++){ const p=snake[i]; const cx=p.x*CELL+CELL/2, cy=p.y*CELL+CELL/2; if(i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy); }
-  ctx.strokeStyle=currentSkin==='G'?'#66ff66':currentSkin==='R'?'#ff6666':currentSkin==='B'?'#6699ff':'#ffff66';
-  ctx.stroke();
-
-  // cabeza
-  const h=snake[0]; const hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
-  ctx.fillStyle=ctx.strokeStyle;
-  ctx.beginPath(); ctx.ellipse(hx,hy,CELL*0.6,CELL*0.45,0,0,Math.PI*2); ctx.fill();
-
-  // ojos
-  const m=CELL*0.12; let eye={x:0,y:0};
-  if(dir.x===1) eye={x:m,y:0}; if(dir.x===-1) eye={x:-m,y:0};
-  if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
-  ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.arc(hx+eye.x-CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
-  ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
-  ctx.fill();
+// helper to darken/lighten color
+function shadeColor(color, percent) {
+  // color like #rrggbb
+  const f = parseInt(color.slice(1),16), t = percent<0?0:255, p = Math.abs(percent)/100;
+  const R = f>>16, G = f>>8&0x00FF, B = f&0x0000FF;
+  const rr = Math.round((t-R)*p)+R, gg = Math.round((t-G)*p)+G, bb = Math.round((t-B)*p)+B;
+  return `rgb(${rr},${gg},${bb})`;
 }
 
 function drawDragonBall(px,py,stars){
-  const cx=px+CELL/2, cy=py+CELL/2, r=CELL*0.38;
-  const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.05,cx,cy,r);
+  const cx = px + CELL/2, cy = py + CELL/2, r = CELL*0.38;
+  const g = ctx.createRadialGradient(cx-r*0.3, cy-r*0.3, r*0.05, cx, cy, r);
   g.addColorStop(0,'#fffacd'); g.addColorStop(0.3,'#ffb347'); g.addColorStop(1,'#ff7f00');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#a00';
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#a00';
   for(let i=0;i<stars;i++){
-    const ang=(i/stars)*Math.PI*2;
-    const sx=cx+Math.cos(ang)*(r*0.45), sy=cy+Math.sin(ang)*(r*0.45);
+    const ang = (i/stars)*Math.PI*2;
+    const sx = cx + Math.cos(ang)*(r*0.45), sy = cy + Math.sin(ang)*(r*0.45);
     drawStar(sx,sy,CELL*0.12,CELL*0.04);
   }
 }
-
 function drawStar(cx,cy,outer,inner){
   ctx.beginPath(); const spikes=5; let rot=Math.PI/2*3; const step=Math.PI/spikes;
   ctx.moveTo(cx,cy-outer);
-  for(let i=0;i<spikes;i++){ ctx.lineTo(cx+Math.cos(rot)*outer,cy+Math.sin(rot)*outer); rot+=step; ctx.lineTo(cx+Math.cos(rot)*inner,cy+Math.sin(rot)*inner); rot+=step; }
-  ctx.closePath(); ctx.fill();
+  for(let i=0;i<spikes;i++){ ctx.lineTo(cx+Math.cos(rot)*outer, cy+Math.sin(rot)*outer); rot+=step; ctx.lineTo(cx+Math.cos(rot)*inner, cy+Math.sin(rot)*inner); rot+=step; }
+  ctx.closePath(); ctx.fillStyle='#ffdd66'; ctx.fill();
 }
 
-async function endGame(){
-  clearInterval(gameInterval); running=false; showTransition(`¡Has muerto!\nPuntuación: ${score}`);
-  restartBtn.style.display='inline-block';
-  if(currentUser){
-    try{
-      const snap = await db.collection('rankings').where('uid','==',currentUser.uid).get();
-      if(!snap.empty){
-        snap.forEach(d=>{ if(score>d.data().score) db.collection('rankings').doc(d.id).update({score}); });
-      } else {
-        await db.collection('rankings').add({uid:currentUser.uid,name:currentUser.displayName||currentUser.email||"Jugador",score,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-      }
-      fetchRanking();
-    }catch(e){ console.error(e);}
-  }
+// ---------- RANKING ----------
+async function fetchRanking(){
+  try{
+    const snapshot = await db.collection('rankings').orderBy('score','desc').limit(10).get();
+    rankingList.innerHTML = '';
+    let pos = 1;
+    snapshot.forEach(doc=>{
+      const d = doc.data();
+      let color = '#FFD700';
+      if(pos===2) color = '#C0C0C0';
+      if(pos===3) color = '#CD7F32';
+      rankingList.innerHTML += `<li style="color:${color}; font-weight:700;">${d.name}: ${d.score}</li>`;
+      pos++;
+    });
+    if(rankingList.innerHTML==='') rankingList.innerHTML = '<li>No hay puntuaciones</li>';
+  }catch(e){ console.error(e); rankingList.innerHTML = '<li>Error cargando ranking</li>'; }
 }
+fetchRanking();
 
-/* Botones */
-startBtn.addEventListener('click', ()=>{
-  resetGame(); running=true; startBtn.style.display='none'; pauseBtn.style.display='inline-block'; restartBtn.style.display='none';
-  if(gameInterval) clearInterval(gameInterval); 
-  gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/speed);
-});
-pauseBtn.addEventListener('click',()=>{ if(!running) return; paused=!paused; pauseBtn.textContent=paused?'Reanudar':'Pausa'; });
-restartBtn.addEventListener('click',()=>{ resetGame(); running=true; paused=false; restartBtn.style.display='none'; pauseBtn.style.display='inline-block'; if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/speed); });
+// ---------- UTIL: actualizar UI ----------
+function updateUI(){ scoreEl.textContent = `Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`; renderSkins(); renderSkins(); }
 
-/* Inicial */
-resetGame(); draw();
-window.addEventListener('resize',()=>{ draw(); });
+// ---------- INICIALIZA todo ----------
+resetGame();
+requestAnimationFrame(draw);
 
+// ---------- ayuda: reiniciar ranking (solo si quieres borrar todo) ----------
+async function resetRankingDatabase(){ // usa con cuidado
+  const c = await db.collection('rankings').get();
+  c.forEach(doc => db.collection('rankings').doc(doc.id).delete());
+  fetchRanking();
+}
 </script>
 </body>
 </html>
