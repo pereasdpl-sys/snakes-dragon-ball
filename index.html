@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Dragon Snake DBZ - Ranking</title>
 <style>
-  :root { --cell: 30px; }
-  body { margin:0; background:#000; color:#fff; font-family:"Segoe UI",sans-serif; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; overflow:hidden;}
-  h1 { color:gold; text-shadow:0 0 12px orange; margin:0; }
-  #topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:600px; }
-  #user { font-size:14px; color:#ffd; }
-  #score { color:#ffcc00; text-shadow:0 0 8px #a00; margin-left:auto; }
-  button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:600; cursor:pointer; }
-  #gameCanvas { border:3px solid gold; border-radius:10px; box-shadow:0 0 25px gold; width:600px; height:600px; display:block; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; }
-  #overlay { position:absolute; left:50%; transform:translateX(-50%) translateY(-50%); background:rgba(0,0,0,0.8); color:gold; padding:24px 32px; border-radius:12px; font-weight:700; display:none; text-align:center; box-shadow:0 0 40px rgba(255,215,0,0.6); font-size:20px;}
-  #ranking { max-width:600px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
-  #ranking h2 { margin:4px 0; color:#ffd700; text-align:center; }
-  #ranking ul { list-style:none; padding:0; margin:0; }
-  #ranking li { margin:2px 0; }
-  @media(max-width:640px){ #gameCanvas{width:90vw;height:90vw;} }
+:root { --cell: 30px; }
+body { margin:0; background:#000; color:#fff; font-family:"Segoe UI",sans-serif; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; overflow:hidden;}
+h1 { color:gold; text-shadow:0 0 12px orange; margin:0; }
+#topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:600px; }
+#user { font-size:14px; color:#ffd; }
+#score { color:#ffcc00; text-shadow:0 0 8px #a00; margin-left:auto; }
+button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:600; cursor:pointer; }
+#gameCanvas { border:3px solid gold; border-radius:10px; box-shadow:0 0 25px gold; width:600px; height:600px; display:block; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; }
+#overlay { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.85); color:gold; padding:24px 32px; border-radius:12px; font-weight:700; display:none; text-align:center; box-shadow:0 0 40px rgba(255,215,0,0.6); font-size:20px;}
+#ranking { max-width:600px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
+#ranking h2 { margin:4px 0; color:#ffd700; text-align:center; }
+#ranking ul { list-style:none; padding:0; margin:0; }
+#ranking li { margin:2px 0; }
+@media(max-width:640px){ #gameCanvas{width:90vw;height:90vw;} }
 </style>
 </head>
 <body>
@@ -28,17 +28,13 @@
   <button id="loginBtn">Iniciar sesión con Google</button>
   <div id="score">Puntuación: 0 | Bolas: 0 | Nivel: 1</div>
 </div>
-
 <canvas id="gameCanvas" width="600" height="600"></canvas>
-
 <div style="margin-top:6px">
   <button id="startBtn">Iniciar</button>
   <button id="pauseBtn">Pausa</button>
   <button id="restartBtn" style="display:none">Reiniciar</button>
 </div>
-
 <div id="overlay"></div>
-
 <div id="ranking">
   <h2>Ranking</h2>
   <ul id="rankingList"><li>Cargando...</li></ul>
@@ -52,21 +48,20 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// Firebase config
+// Configuración Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyDvewyV9qxnAX9sHsbbWdKWLFOi1R13mrY",
-  authDomain: "snake-dragon-ball-cb4ef.firebaseapp.com",
-  projectId: "snake-dragon-ball-cb4ef",
-  storageBucket: "snake-dragon-ball-cb4ef.firebasestorage.app",
-  messagingSenderId: "82216464295",
-  appId: "1:82216464295:web:9505b08e5114f9f948d082",
-  measurementId: "G-S4SHGH26KC"
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_AUTH_DOMAIN",
+  projectId: "TU_PROJECT_ID",
+  storageBucket: "TU_STORAGE_BUCKET",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
 };
 const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-/* ===== Variables ===== */
+/* ===== Variables juego ===== */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -83,17 +78,17 @@ const teleportSound = document.getElementById('teleportSound');
 let CELL = 30, COLS = Math.floor(canvas.width / CELL), ROWS = Math.floor(canvas.height / CELL);
 let snake=[], dir={x:1,y:0}, nextDir=null, foodList=[], score=0;
 let running=false, paused=false, gameInterval=null, level=1, boardExpanded=false, currentUser=null;
+let particles=[];
 
-/* ===== Login ===== */
+/* ===== Login Google ===== */
 loginBtn.addEventListener('click', async ()=>{
-  if(location.protocol==="file:"){ alert("Usa Live Server para login"); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  try {
+  try{
     const res = await auth.signInWithPopup(provider);
     currentUser = res.user;
     userEl.textContent = `Conectado: ${currentUser.displayName}`;
     loginBtn.style.display='none';
-  } catch(err){ console.error(err); alert("Error: "+err.message); }
+  }catch(err){ alert("Error login: "+err.message);}
 });
 
 /* ===== Juego ===== */
@@ -101,63 +96,26 @@ function resetGame(){
   snake=[]; const sx=Math.floor(COLS/2), sy=Math.floor(ROWS/2);
   for(let i=0;i<4;i++) snake.push({x:sx-i,y:sy});
   dir={x:1,y:0}; nextDir=null; score=0; level=1; boardExpanded=false; running=false; paused=false;
-  spawnFood(); updateUI(); draw();
+  spawnFood();
+  updateUI(); draw();
 }
 
 function spawnFood(){
-  foodList=[]; 
-  if(level===1){
-    for(let i=0;i<7;i++){
-      let fx,fy;
-      do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
-      while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
-      foodList.push({x:fx,y:fy,stars:(i%7)+1});
-    }
+  foodList=[];
+  const balls = level===1 ? 7 : 5;
+  for(let i=0;i<balls;i++){
+    spawnSingleFood();
   }
   updateUI();
 }
 
 function spawnSingleFood(){
   let fx, fy;
-  do { fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
-  while(snake.some(s=>s.x===fx && s.y===fy) || foodList.some(f=>f.x===fx && f.y===fy));
+  do{
+    fx = Math.floor(Math.random()*COLS);
+    fy = Math.floor(Math.random()*ROWS);
+  }while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
   foodList.push({x:fx,y:fy,stars:1});
-  animateParticles(fx*CELL+CELL/2, fy*CELL+CELL/2, 'yellow');
-}
-
-function animateParticles(x, y, color){
-  const particles = [];
-  for(let i=0;i<20;i++){
-    particles.push({ x, y, vx: Math.random()*2-1, vy: Math.random()*2-1, life: Math.random()*30+30 });
-  }
-  const anim = setInterval(()=>{
-    draw();
-    for(let p of particles){
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,2,0,Math.PI*2);
-      ctx.fill();
-      p.x += p.vx; p.y += p.vy; p.life--;
-    }
-    for(let i=particles.length-1;i>=0;i--) if(particles[i].life<=0) particles.splice(i,1);
-    if(particles.length===0) clearInterval(anim);
-  },30);
-}
-
-function showShenlongTransition(){
-  return new Promise(resolve=>{
-    overlay.style.display='block';
-    overlay.innerHTML = "¡Has reunido las 7 Bolas del Dragón!<br>Shenlong te teletransporta...";
-    overlay.style.transform='translate(-50%,-50%) scale(0.5)';
-    overlay.style.opacity = 0;
-    let t=0;
-    const anim = setInterval(()=>{
-      t+=0.05;
-      overlay.style.transform=`translate(-50%,-50%) scale(${0.5 + t})`;
-      overlay.style.opacity = Math.min(1, t*2);
-      if(t>=1) { clearInterval(anim); setTimeout(()=>{overlay.style.display='none'; resolve();}, 800); }
-    },30);
-  });
 }
 
 document.addEventListener('keydown', e=>{
@@ -168,77 +126,70 @@ document.addEventListener('keydown', e=>{
   if((e.key==='ArrowRight'||e.key==='d')&&dir.x!==-1) nextDir={x:1,y:0};
 });
 
-async function gameTick(){
+function gameTick(){
   if(nextDir){ dir=nextDir; nextDir=null; }
   const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
   if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS) return endGame();
   if(snake.some((s,i)=>i>0&&s.x===head.x&&s.y===head.y)) return endGame();
   snake.unshift(head);
+
   let ate=false;
   for(let i=0;i<foodList.length;i++){
     const f=foodList[i];
     if(f.x===head.x && f.y===head.y){
+      score+=10;
       eatSound.currentTime=0; eatSound.play();
-      score += 10*(f.stars||1);
       foodList.splice(i,1);
       ate=true;
-      if(level>=2) spawnSingleFood();
+      spawnSingleFood(); // nueva bola aparece inmediatamente
+      createParticles(f.x*CELL+CELL/2,f.y*CELL+CELL/2); // partículas al comer
       break;
     }
   }
-  if(!ate) snake.pop(); 
+  if(!ate) snake.pop();
   updateUI();
 
-  if(foodList.length===0 && level===1){
-    await showShenlongTransition();
-    teleportToCenter();
-    level=2; spawnSingleFood();
-  } else if(foodList.length===0 && level>=2 && !boardExpanded){
-    expandBoard(); spawnSingleFood();
+  // Nivel 1: cuando agarras 7 bolas -> transición
+  if(level===1 && foodList.length===0){
+    startTransition();
   }
+}
+
+function startTransition(){
+  showOverlay("¡Has reunido las 7 Bolas del Dragón!\nShenlong te teletransporta...",3000);
+  teleportSound.currentTime=0; teleportSound.play();
+  createParticles(canvas.width/2,canvas.height/2,50,true);
+  setTimeout(()=>{
+    teleportToCenter();
+    level=2;
+    spawnFood();
+  },3000);
 }
 
 function teleportToCenter(){
   const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2), dx=hx-snake[0].x, dy=hy-snake[0].y;
-  for(let i=0;i<snake.length;i++){ snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx)); snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy)); }
-}
-
-function expandBoard(){ 
-  showOverlay("¡El tablero se expande!"); 
-  COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; 
-  teleportToCenter(); 
-  boardExpanded=true; 
+  for(let i=0;i<snake.length;i++){ snake[i].x+=dx; snake[i].y+=dy; }
 }
 
 function updateUI(){ scoreEl.textContent=`Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`; }
 
-function showOverlay(text,ms=1500){ 
-  overlay.style.display='block'; overlay.innerText=text; 
-  overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)';
-  setTimeout(()=>{ overlay.style.display='none'; },ms); 
-}
-
-async function endGame(){
-  clearInterval(gameInterval); running=false; showOverlay(`¡Has muerto!\nPuntuación: ${score}`,3500); restartBtn.style.display='inline-block';
-  if(currentUser){
-    try{
-      // Comprobar si ya tiene puntuación y actualizar si es mayor
-      const userRef = db.collection('rankings').doc(currentUser.uid);
-      const docSnap = await userRef.get();
-      if(docSnap.exists()){
-        if(score > docSnap.data().score) await userRef.set({name:currentUser.displayName||currentUser.email, score, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-      } else {
-        await userRef.set({name:currentUser.displayName||currentUser.email, score, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-      }
-      fetchRanking();
-    } catch(e){ console.error(e);}
+/* ===== Partículas ===== */
+function createParticles(x,y,count=20,big=false){
+  for(let i=0;i<count;i++){
+    particles.push({
+      x, y,
+      dx:(Math.random()-0.5)*(big?10:4),
+      dy:(Math.random()-0.5)*(big?10:4),
+      alpha:1,
+      size:big ? 6 : 3
+    });
   }
 }
 
 /* ===== Botones ===== */
 startBtn.addEventListener('click', ()=>{
-  resetGame(); running=true; startBtn.style.display='none'; pauseBtn.style.display='inline-block'; restartBtn.style.display='none';
-  if(gameInterval) clearInterval(gameInterval); 
+  resetGame(); running=true; startBtn.style.display='none'; pauseBtn.style.display='inline-block';
+  if(gameInterval) clearInterval(gameInterval);
   gameInterval=setInterval(()=>{if(running&&!paused) gameTick(); draw();},1000/7);
 });
 pauseBtn.addEventListener('click',()=>{ if(!running) return; paused=!paused; pauseBtn.textContent=paused?'Reanudar':'Pausa'; });
@@ -269,13 +220,25 @@ fetchRanking();
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // cuadricula
+  // Cuadrícula
   ctx.strokeStyle='rgba(255,255,255,0.08)';
   for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke(); }
   for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke(); }
 
+  // Bolas
   for(const f of foodList) drawDragonBall(f.x*CELL,f.y*CELL,f.stars);
+
+  // Dragón
   drawDragon();
+
+  // Partículas
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    ctx.fillStyle=`rgba(255,215,0,${p.alpha})`;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,2*Math.PI); ctx.fill();
+    p.x += p.dx; p.y += p.dy; p.alpha -= 0.03;
+    if(p.alpha<=0) particles.splice(i,1);
+  }
 
   if(!running){
     ctx.fillStyle='rgba(0,0,0,0.5)';
@@ -287,7 +250,49 @@ function draw(){
   }
 }
 
-/* ===== Inicial ===== */
+function drawDragon(){
+  if(snake.length===0) return;
+  ctx.lineWidth=CELL*0.8; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.strokeStyle='#66ff66'; ctx.beginPath();
+  for(let i=0;i<snake.length;i++){
+    const p=snake[i]; const cx=p.x*CELL+CELL/2, cy=p.y*CELL+CELL/2;
+    if(i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
+  }
+  ctx.stroke();
+
+  // cabeza
+  const h=snake[0]; const hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
+  ctx.fillStyle='limegreen'; ctx.beginPath();
+  ctx.ellipse(hx,hy,CELL*0.6,CELL*0.45,0,0,Math.PI*2); ctx.fill();
+
+  // ojos tipo DBZ
+  ctx.fillStyle='#000';
+  ctx.beginPath();
+  ctx.arc(hx-CELL*0.15, hy-CELL*0.12, CELL*0.12,0,2*Math.PI);
+  ctx.arc(hx+CELL*0.15, hy-CELL*0.12, CELL*0.12,0,2*Math.PI);
+  ctx.fill();
+
+  // cuernos
+  ctx.fillStyle='orange';
+  ctx.beginPath();
+  ctx.moveTo(hx-CELL*0.25,hy-CELL*0.35);
+  ctx.lineTo(hx-CELL*0.1,hy-CELL*0.6);
+  ctx.lineTo(hx-CELL*0.05,hy-CELL*0.35);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(hx+CELL*0.25,hy-CELL*0.35);
+  ctx.lineTo(hx+CELL*0.1,hy-CELL*0.6);
+  ctx.lineTo(hx+CELL*0.05,hy-CELL*0.35);
+  ctx.fill();
+}
+
+function drawDragonBall(px,py,stars){
+  const cx=px+CELL/2, cy=py+CELL/2, r=CELL*0.38;
+  const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.05,cx,cy,r);
+  g.addColorStop(0,'#fffacd'); g.addColorStop(0.3,'#ffb347'); g.addColorStop(1,'#ff7f00');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+}
 resetGame(); draw();
 window.addEventListener('resize',()=>{ draw(); });
 </script>
