@@ -139,13 +139,13 @@ function resetGame(){
   updateUI(); draw();
 }
 
-ffunction spawnFood() {
+function spawnFood() {
   foodList = [];
   let balls;
   if(level === 1) {
-    balls = 7; // Nivel 1: solo las 7 bolas
+    balls = 7; // Nivel 1: siempre solo 7 bolas
   } else {
-    balls = 5 + Math.floor(Math.random()*5); // Nivel 2+: bolas aleatorias
+    balls = 5 + Math.floor(Math.random()*5); // Nivel 2+: más bolas aleatorias
   }
   for(let i=0;i<balls;i++){
     let fx, fy;
@@ -157,6 +157,7 @@ ffunction spawnFood() {
   }
   updateUI();
 }
+
 
 
 document.addEventListener('keydown', e=>{
@@ -183,9 +184,21 @@ for(let i=0; i<foodList.length; i++){
     score += 10*(f.stars||1);
     foodList.splice(i,1);
     ate = true;
-    // Si estamos en nivel >=2, generamos otra bola al instante
+    // SOLO generar nueva bola si estamos en nivel >= 2
     if(level >= 2) spawnFood();
     break;
+  }
+}
+if(foodList.length === 0){
+  if(level === 1){
+    showOverlay("¡Has reunido las 7 Bolas del Dragón!\nShenlong te teletransporta...",1800);
+    teleportToCenter();
+    level = 2;
+    spawnFood(); 
+    teleportSound.currentTime=0; teleportSound.play();
+  } else if(!boardExpanded){
+    expandBoard();
+    spawnFood();
   }
 }
 
@@ -318,4 +331,5 @@ window.addEventListener('resize',()=>{ draw(); });
 </script>
 </body>
 </html>
+
 
