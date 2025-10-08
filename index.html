@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Dragon Snake DBZ - Ranking</title>
 <style>
-:root { --cell: 30px; }
-body { margin:0; background:#000; color:#fff; font-family:"Segoe UI",sans-serif; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; overflow:hidden;}
-h1 { color:gold; text-shadow:0 0 12px orange; margin:0; }
-#topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:600px; }
-#user { font-size:14px; color:#ffd; }
-#score { color:#ffcc00; text-shadow:0 0 8px #a00; margin-left:auto; }
-button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:600; cursor:pointer; }
-#gameCanvas { border:3px solid gold; border-radius:10px; box-shadow:0 0 25px gold; width:600px; height:600px; display:block; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; }
-#overlay { position:absolute; left:50%; transform:translateX(-50%) translateY(-50%); background:rgba(0,0,0,0.8); color:gold; padding:24px 32px; border-radius:12px; font-weight:700; display:none; text-align:center; box-shadow:0 0 40px rgba(255,215,0,0.6); font-size:20px;}
-#ranking { max-width:600px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
-#ranking h2 { margin:4px 0; color:#ffd700; text-align:center; }
-#ranking ul { list-style:none; padding:0; margin:0; }
-#ranking li { margin:2px 0; }
-@media(max-width:640px){ #gameCanvas{width:90vw;height:90vw;} }
+  :root { --cell: 30px; }
+  body { margin:0; background:#000; color:#fff; font-family:"Segoe UI",sans-serif; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; overflow:hidden;}
+  h1 { color:gold; text-shadow:0 0 12px orange; margin:0; }
+  #topbar { display:flex; gap:10px; align-items:center; width:100%; max-width:600px; }
+  #user { font-size:14px; color:#ffd; }
+  #score { color:#ffcc00; text-shadow:0 0 8px #a00; margin-left:auto; }
+  button { padding:8px 14px; border-radius:8px; border:none; background:gold; color:#000; font-weight:600; cursor:pointer; }
+  #gameCanvas { border:3px solid gold; border-radius:10px; box-shadow:0 0 25px gold; width:600px; height:600px; display:block; background-image:url('https://i.imgur.com/q4p6g8p.jpg'); background-size:cover; background-position:center; }
+  #overlay { position:absolute; left:50%; transform:translateX(-50%) translateY(-50%); background:rgba(0,0,0,0.8); color:gold; padding:24px 32px; border-radius:12px; font-weight:700; display:none; text-align:center; box-shadow:0 0 40px rgba(255,215,0,0.6); font-size:20px;}
+  #ranking { max-width:600px; width:100%; margin-top:12px; border:2px solid gold; border-radius:12px; padding:8px; background:rgba(0,0,0,0.5); }
+  #ranking h2 { margin:4px 0; color:#ffd700; text-align:center; }
+  #ranking ul { list-style:none; padding:0; margin:0; }
+  #ranking li { margin:2px 0; }
+  @media(max-width:640px){ #gameCanvas{width:90vw;height:90vw;} }
 </style>
 </head>
 <body>
@@ -52,7 +52,7 @@ button { padding:8px 14px; border-radius:8px; border:none; background:gold; colo
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// Configuración Firebase
+// Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDvewyV9qxnAX9sHsbbWdKWLFOi1R13mrY",
   authDomain: "snake-dragon-ball-cb4ef.firebaseapp.com",
@@ -84,7 +84,7 @@ let CELL = 30, COLS = Math.floor(canvas.width / CELL), ROWS = Math.floor(canvas.
 let snake=[], dir={x:1,y:0}, nextDir=null, foodList=[], score=0;
 let running=false, paused=false, gameInterval=null, level=1, boardExpanded=false, currentUser=null;
 
-/* ===== Login ===== */
+/* ===== Login opcional ===== */
 loginBtn.addEventListener('click', async ()=>{
   if(location.protocol==="file:"){ alert("Para login debes abrir el juego en Live Server (http://)"); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -104,21 +104,13 @@ function resetGame(){
   spawnFood(); updateUI(); draw();
 }
 
-function spawnFood() {
-  foodList = [];
-  let balls;
-  if(level === 1) {
-    balls = 7; // Nivel 1: solo 7 bolas
-  } else {
-    balls = 5 + Math.floor(Math.random()*5); // Nivel 2+: más bolas
-  }
+function spawnFood(){
+  foodList=[]; const balls=(level===1)?7:5+Math.floor(Math.random()*5);
   for(let i=0;i<balls;i++){
-    let fx, fy;
-    do {
-      fx = Math.floor(Math.random()*COLS);
-      fy = Math.floor(Math.random()*ROWS);
-    } while(snake.some(s=>s.x===fx&&s.y===fy) || foodList.some(f=>f.x===fx&&f.y===fy));
-    foodList.push({x:fx, y:fy, stars: (i%7)+1});
+    let fx,fy;
+    do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
+    while(snake.some(s=>s.x===fx&&s.y===fy)||foodList.some(f=>f.x===fx&&f.y===fy));
+    foodList.push({x:fx,y:fy,stars:(i%7)+1});
   }
   updateUI();
 }
@@ -138,49 +130,63 @@ function gameTick(){
   if(snake.some((s,i)=>i>0&&s.x===head.x&&s.y===head.y)) return endGame();
   snake.unshift(head);
   let ate=false;
-  // 🍀 Comer bolas
-  for(let i=0; i<foodList.length; i++){
-    const f = foodList[i];
+  for(let i=0;i<foodList.length;i++){
+    const f=foodList[i];
     if(f.x===head.x && f.y===head.y){
       eatSound.currentTime=0; eatSound.play();
       score += 10*(f.stars||1);
       foodList.splice(i,1);
-      ate = true;
-      // SOLO generar nueva bola si nivel >=2
-      if(level >= 2) spawnFood();
+      ate=true;
+      if(level>=2) spawnFood(); // Nivel 2+ genera otra bola inmediatamente
       break;
     }
   }
   if(!ate) snake.pop(); updateUI();
 
-  // 3️⃣ Comprobar si no quedan bolas
-  if(foodList.length === 0){
-    if(level === 1){
-      showOverlay("¡Has reunido las 7 Bolas del Dragón!\nShenlong te teletransporta...",1800);
-      teleportToCenter();
-      level = 2;
-      spawnFood(); 
-      teleportSound.currentTime=0; 
-      teleportSound.play();
-    } else if(!boardExpanded){
-      expandBoard();
+  if(foodList.length===0 && level===1){
+    showShenlongTransition().then(()=>{
+      level=2;
       spawnFood();
-    }
+    });
+  } else if(foodList.length===0 && !boardExpanded){
+    expandBoard(); spawnFood();
+  } else if(foodList.length===0 && level>=2){
+    spawnFood();
   }
 }
 
 function teleportToCenter(){
-  const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2), dx=hx-snake[0].x, dy=hy-snake[0].y;
-  for(let i=0;i<snake.length;i++){ snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx)); snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy)); }
+  const hx=Math.floor(COLS/2), hy=Math.floor(ROWS/2);
+  const dx=hx-snake[0].x, dy=hy-snake[0].y;
+  for(let i=0;i<snake.length;i++){
+    snake[i].x=Math.max(0,Math.min(COLS-1,snake[i].x+dx));
+    snake[i].y=Math.max(0,Math.min(ROWS-1,snake[i].y+dy));
+  }
 }
 
-function expandBoard(){ 
-  showOverlay("¡El tablero se expande! Ahora sigue hasta que mueras...",2000); 
-  COLS+=10; ROWS+=10; 
-  canvas.width=COLS*CELL; canvas.height=ROWS*CELL; 
-  teleportToCenter(); 
-  boardExpanded=true; 
+function showShenlongTransition(){
+  return new Promise(resolve=>{
+    overlay.style.display='block';
+    overlay.innerHTML = `<img src="https://i.imgur.com/Ff5Wb0v.png" style="width:250px;height:auto;animation:fadeInOut 2s;"> <br>¡Shenlong te teletransporta!`;
+    overlay.style.left='50%'; overlay.style.top='50%'; overlay.style.transform='translate(-50%,-50%)';
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes fadeInOut {
+        0% { opacity:0; transform: scale(0.5);}
+        50% { opacity:1; transform: scale(1.2);}
+        100% { opacity:0; transform: scale(1);}
+      }`;
+    document.head.appendChild(style);
+    teleportToCenter();
+    teleportSound.currentTime=0; teleportSound.play();
+    setTimeout(()=>{
+      overlay.style.display='none';
+      resolve();
+    },2000);
+  });
 }
+
+function expandBoard(){ showOverlay("¡El tablero se expande! Ahora sigue hasta que mueras...",2000); COLS+=10; ROWS+=10; canvas.width=COLS*CELL; canvas.height=ROWS*CELL; teleportToCenter(); boardExpanded=true; }
 
 function updateUI(){ scoreEl.textContent=`Puntuación: ${score} | Bolas: ${foodList.length} | Nivel: ${level}`; }
 
@@ -218,11 +224,6 @@ fetchRanking();
 /* ===== Dibujar Dragón y Bolas ===== */
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // fondo fijo, no se desplaza
-  ctx.fillStyle='#111';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
   ctx.strokeStyle='rgba(255,255,255,0.08)';
   for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke(); }
   for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke(); }
@@ -250,10 +251,16 @@ function drawDragon(){
   ctx.strokeStyle='#66ff66'; ctx.stroke();
   const h=snake[0]; const hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
   ctx.fillStyle='limegreen'; ctx.beginPath(); ctx.ellipse(hx,hy,CELL*0.6,CELL*0.45,0,0,Math.PI*2); ctx.fill();
-  for(let i=1;i<snake.length;i++){ const s=snake[i]; const sx=s.x*CELL+CELL/2, sy=s.y*CELL+CELL/2; ctx.save(); ctx.translate(sx,sy); const rot=(i%2===0)?-0.4:0.4; ctx.rotate(rot); ctx.fillStyle=(i%3===0)?'#2e8b57':'#228b22'; ctx.beginPath(); ctx.ellipse(0,0,CELL*0.16,CELL*0.08,0,0,Math.PI*2); ctx.fill(); ctx.restore(); }
-  const m=CELL*0.12; let eye={x:0,y:0}; if(dir.x===1) eye={x:m,y:0}; if(dir.x===-1) eye={x:-m,y:0}; if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
+  for(let i=1;i<snake.length;i++){ const s=snake[i]; const sx=s.x*CELL+CELL/2, sy=s.y*CELL+CELL/2;
+    ctx.save(); ctx.translate(sx,sy); const rot=(i%2===0)?-0.4:0.4; ctx.rotate(rot);
+    ctx.fillStyle=(i%3===0)?'#2e8b57':'#228b22'; ctx.beginPath(); ctx.ellipse(0,0,CELL*0.16,CELL*0.08,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+  const m=CELL*0.12; let eye={x:0,y:0};
+  if(dir.x===1) eye={x:m,y:0}; if(dir.x===-1) eye={x:-m,y:0};
+  if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
   ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.arc(hx+eye.x-CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI); ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI); ctx.fill();
+  ctx.beginPath(); ctx.arc(hx+eye.x-CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
+  ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI); ctx.fill();
 }
 
 function drawDragonBall(px,py,stars){
