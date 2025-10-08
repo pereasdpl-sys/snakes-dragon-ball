@@ -105,8 +105,8 @@ function resetGame(){
 }
 
 function spawnFood(){
+  foodList=[]; 
   if(level===1){
-    foodList=[]; 
     for(let i=0;i<7;i++){
       let fx,fy;
       do{ fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
@@ -119,23 +119,16 @@ function spawnFood(){
 
 function spawnSingleFood(){
   let fx, fy;
-  do {
-    fx=Math.floor(Math.random()*COLS);
-    fy=Math.floor(Math.random()*ROWS);
-  } while(snake.some(s=>s.x===fx && s.y===fy) || foodList.some(f=>f.x===fx && f.y===fy));
+  do { fx=Math.floor(Math.random()*COLS); fy=Math.floor(Math.random()*ROWS);}
+  while(snake.some(s=>s.x===fx && s.y===fy) || foodList.some(f=>f.x===fx && f.y===fy));
   foodList.push({x:fx,y:fy,stars:1});
   animateParticles(fx*CELL+CELL/2, fy*CELL+CELL/2, 'yellow');
 }
 
 function animateParticles(x, y, color){
   const particles = [];
-  for(let i=0;i<15;i++){
-    particles.push({
-      x, y,
-      vx: Math.random()*2-1,
-      vy: Math.random()*2-1,
-      life: Math.random()*30+30
-    });
+  for(let i=0;i<20;i++){
+    particles.push({ x, y, vx: Math.random()*2-1, vy: Math.random()*2-1, life: Math.random()*30+30 });
   }
   const anim = setInterval(()=>{
     draw();
@@ -228,11 +221,17 @@ function showOverlay(text,ms=1500){
 async function endGame(){
   clearInterval(gameInterval); running=false; showOverlay(`¡Has muerto!\nPuntuación: ${score}`,3500); restartBtn.style.display='inline-block';
   if(currentUser){
-    try{ 
-      await db.collection('rankings').add({uid:currentUser.uid,name:currentUser.displayName||currentUser.email||"Jugador",score:score,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); 
-      fetchRanking(); 
-    }
-    catch(e){ console.error(e);}
+    try{
+      // Comprobar si ya tiene puntuación y actualizar si es mayor
+      const userRef = db.collection('rankings').doc(currentUser.uid);
+      const docSnap = await userRef.get();
+      if(docSnap.exists()){
+        if(score > docSnap.data().score) await userRef.set({name:currentUser.displayName||currentUser.email, score, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      } else {
+        await userRef.set({name:currentUser.displayName||currentUser.email, score, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      }
+      fetchRanking();
+    } catch(e){ console.error(e);}
   }
 }
 
@@ -251,7 +250,16 @@ async function fetchRanking(){
   try{
     const snapshot = await db.collection('rankings').orderBy('score','desc').limit(10).get();
     rankingList.innerHTML='';
-    snapshot.forEach(doc=>{ const d=doc.data(); rankingList.innerHTML+=`<li>${d.name}: ${d.score}</li>`; });
+    let pos=1;
+    snapshot.forEach(doc=>{
+      const d=doc.data();
+      let color='gold';
+      if(pos===1) color='gold';
+      else if(pos===2) color='silver';
+      else if(pos===3) color='peru';
+      rankingList.innerHTML+=`<li style="color:${color}; font-weight:700;">${d.name}: ${d.score}</li>`;
+      pos++;
+    });
     if(rankingList.innerHTML==='') rankingList.innerHTML='<li>No hay puntuaciones</li>';
   }catch(e){ console.error(e); rankingList.innerHTML='<li>Error cargando ranking</li>'; }
 }
@@ -260,9 +268,6 @@ fetchRanking();
 /* ===== Dibujar ===== */
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // fondo
-  ctx.drawImage(document.createElement('img'),0,0,canvas.width,canvas.height); // placeholder, ya está en CSS
 
   // cuadricula
   ctx.strokeStyle='rgba(255,255,255,0.08)';
@@ -280,46 +285,6 @@ function draw(){
     ctx.textAlign='center';
     ctx.fillText('Pulsa INICIAR',canvas.width/2,canvas.height/2);
   }
-}
-
-function drawDragon(){
-  if(snake.length===0) return;
-  ctx.lineWidth=CELL*0.8; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.beginPath();
-  for(let i=0;i<snake.length;i++){ const p=snake[i]; const cx=p.x*CELL+CELL/2, cy=p.y*CELL+CELL/2; if(i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy); }
-  ctx.strokeStyle='#66ff66'; ctx.stroke();
-  const h=snake[0]; const hx=h.x*CELL+CELL/2, hy=h.y*CELL+CELL/2;
-  ctx.fillStyle='limegreen'; ctx.beginPath(); ctx.ellipse(hx,hy,CELL*0.6,CELL*0.45,0,0,Math.PI*2); ctx.fill();
-  for(let i=1;i<snake.length;i++){ const s=snake[i]; const sx=s.x*CELL+CELL/2, sy=s.y*CELL+CELL/2;
-    ctx.save(); ctx.translate(sx,sy); const rot=(i%2===0)?-0.4:0.4; ctx.rotate(rot);
-    ctx.fillStyle=(i%3===0)?'#2e8b57':'#228b22'; ctx.beginPath(); ctx.ellipse(0,0,CELL*0.16,CELL*0.08,0,0,Math.PI*2); ctx.fill(); ctx.restore();
-  }
-  const m=CELL*0.12; let eye={x:0,y:0};
-  if(dir.x===1) eye={x:m,y:0}; if(dir.x===-1) eye={x:-m,y:0};
-  if(dir.y===-1) eye={x:0,y:-m}; if(dir.y===1) eye={x:0,y:m};
-  ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.arc(hx+eye.x-CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
-  ctx.arc(hx+eye.x+CELL*0.14, hy-CELL*0.18+eye.y, CELL*0.11,0,2*Math.PI);
-  ctx.fill();
-}
-
-function drawDragonBall(px,py,stars){
-  const cx=px+CELL/2, cy=py+CELL/2, r=CELL*0.38;
-  const g=ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.05,cx,cy,r);
-  g.addColorStop(0,'#fffacd'); g.addColorStop(0.3,'#ffb347'); g.addColorStop(1,'#ff7f00');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#a00';
-  for(let i=0;i<stars;i++){
-    const ang=(i/stars)*Math.PI*2;
-    const sx=cx+Math.cos(ang)*(r*0.45), sy=cy+Math.sin(ang)*(r*0.45);
-    drawStar(sx,sy,CELL*0.12,CELL*0.04);
-  }
-}
-
-function drawStar(cx,cy,outer,inner){
-  ctx.beginPath(); const spikes=5; let rot=Math.PI/2*3; const step=Math.PI/spikes;
-  ctx.moveTo(cx,cy-outer);
-  for(let i=0;i<spikes;i++){ ctx.lineTo(cx+Math.cos(rot)*outer,cy+Math.sin(rot)*outer); rot+=step; ctx.lineTo(cx+Math.cos(rot)*inner,cy+Math.sin(rot)*inner); rot+=step; }
-  ctx.closePath(); ctx.fill();
 }
 
 /* ===== Inicial ===== */
